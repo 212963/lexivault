@@ -1728,7 +1728,11 @@ const WebDAV = (() => {
   }
 
   async function request(method, path, body = null, contentType = 'application/json') {
-    const headers = { Authorization: authHeader() };
+    const headers = {
+      Authorization: authHeader(),
+      // ★ 坚果云要求 User-Agent 里含 "DAV"，否则返回 403
+      'User-Agent': 'LexiVault-WebDAV/1.0',
+    };
     if (body !== null && contentType) headers['Content-Type'] = contentType;
     const url = fullUrl(path);
 

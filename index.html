@@ -2024,8 +2024,8 @@ async function importPack(file) {
 /* ══════════════════════════════════════════════
    §6.85  云同步（下载 → 合并 → 上传）
    ══════════════════════════════════════════════ */
-const DATA_PATH = 'lexivault/data.json';
-const IMG_DIR   = 'lexivault/images';
+const DATA_PATH = 'data.json';
+const IMG_DIR   = 'images';
 
 function setSyncStatus(text, type = 'info') {
   const el = $('#davStatus');
@@ -2153,9 +2153,7 @@ async function syncNow() {
 
     // ─── 4. 上传：data.json + 缺失的图片 ───
     setSyncProgress('4/4 上传本地数据…');
-    await WebDAV.ensureDir('lexivault');
     await WebDAV.ensureDir(IMG_DIR);
-
     // 4a. 先传图片（先上传再写 data.json，避免 data.json 引用到不存在的图片）
     const remoteImgSet = new Set(
       remote && Array.isArray(remote.images) ? remote.images.map(i => i.id) : []

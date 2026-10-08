@@ -1787,7 +1787,8 @@ const WebDAV = (() => {
     const resp = await request('GET', './', null, null);
     if (resp.status === 401) throw new Error('账号或应用密码错误');
     // 207 是 WebDAV 目录列表的正常响应，200 也行
-    if (resp.status === 207 || resp.status === 200 || resp.status === 404) return true;
+    // 403 也视为成功：坚果云不允许列目录，但文件读写正常
+    if (resp.status === 207 || resp.status === 200 || resp.status === 404 || resp.status === 403) return true;
     throw new Error(`连接失败：HTTP ${resp.status}`);
   }
 

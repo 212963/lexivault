@@ -2232,7 +2232,10 @@ async function clearAllData() {
   S.urls.forEach(u => URL.revokeObjectURL(u));
   S.urls.clear();
   S.words = []; S.images = []; S.articles = [];
-  S.settings = { ...DEFAULT_SETTINGS };
+  // ★ 保留 WebDAV 配置，只重置其他设置
+  const keepWebdav = S.settings.webdav;
+  const keepSyncAt = S.settings.lastSyncAt;
+  S.settings = { ...DEFAULT_SETTINGS, webdav: keepWebdav, lastSyncAt: keepSyncAt };
   saveSettings();
   renderCreate();
   renderTestSetup();

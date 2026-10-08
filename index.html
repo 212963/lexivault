@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <title>LexiVault · 移动版</title>
+<link rel="manifest" href="manifest.json">
 <style>
 /* ═══════════ 基础 ═══════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -2399,6 +2400,15 @@ async function boot() {
 }
 
 boot();
+
+// 注册 Service Worker（PWA）
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log('[LexiVault] Service Worker 已注册'))
+      .catch(e => console.warn('[LexiVault] SW 注册失败', e));
+  });
+}
 </script>
 </body>
 </html>

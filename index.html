@@ -656,17 +656,6 @@ label:first-of-type{margin-top:0}
   border-color:var(--accent);background:rgba(var(--text-rgb),.08);
   box-shadow:0 0 0 3px rgba(var(--accent-rgb),.16);
 }
-.sync-field select.tts-sel{
-  width:100%;padding:12px 14px;font-size:14px;
-  border-radius:11px;border:1px solid var(--border);
-  background:rgba(var(--text-rgb),.05);color:var(--text);
-  font-family:inherit;outline:none;-webkit-appearance:none;
-  transition:all .2s var(--ease);
-}
-.sync-field select.tts-sel:focus{
-  border-color:var(--accent);background:rgba(var(--text-rgb),.08);
-  box-shadow:0 0 0 3px rgba(var(--accent-rgb),.16);
-}
 .sync-hint{
   font-size:11.5px;color:var(--muted);line-height:1.6;
   padding:10px 12px;border-radius:10px;
@@ -966,37 +955,6 @@ label:first-of-type{margin-top:0}
       </div>
     </div>
 
-    <!-- 发音音色 -->
-    <div class="set-section">
-      <div class="set-title">🔊 发音音色</div>
-      <div class="sync-hint">
-        发音由 <b>微软 Edge TTS</b>（经 VoiceCafe）合成，音质接近真人。<b>需要联网</b>，首次点发音会等 1 秒左右。
-      </div>
-
-      <div class="sync-field">
-        <label>音色</label>
-        <select id="voiceSelect" class="tts-sel"></select>
-      </div>
-      <div class="sync-field">
-        <label>风格</label>
-        <select id="styleSelect" class="tts-sel"></select>
-      </div>
-      <div class="sync-field">
-        <label>语速</label>
-        <select id="speedSelect" class="tts-sel"></select>
-      </div>
-      <div class="sync-field">
-        <label>音调</label>
-        <select id="pitchSelect" class="tts-sel"></select>
-      </div>
-
-      <div class="sync-actions" style="margin-top:10px">
-        <button class="btn" id="voiceTest">🔊 试听</button>
-        <button class="btn primary" id="voiceSave">💾 保存</button>
-      </div>
-      <div class="sync-status" id="voiceStatus">未配置</div>
-    </div>
-
     <!-- 数据管理 -->
     <div class="set-section">
       <div class="set-title">💾 数据管理</div>
@@ -1287,69 +1245,14 @@ const DB = (() => {
    ══════════════════════════════════════════════ */
 const Speech = (() => {
   const synth = window.speechSynthesis;
-  const VOICE_KEY = 'lexivault.mobile.tts.voiceId';
-  const STYLE_KEY = 'lexivault.mobile.tts.style';
-  const SPEED_KEY = 'lexivault.mobile.tts.speed';
-  const PITCH_KEY = 'lexivault.mobile.tts.pitch';
 
-  // ★ 音色：多语言女声（中文 + 英文）
-  const TTS_VOICES = [
-    { id: 'zh-CN-XiaoxiaoMultilingualNeural',   name: '晓晓 · 多语言女声' },
-    { id: 'zh-CN-XiaochenMultilingualNeural',   name: '晓辰 · 多语言女声' },
-    { id: 'zh-CN-XiaoyuMultilingualNeural',     name: '晓宇 · 多语言女声' },
-    { id: 'zh-CN-XiaoshuangMultilingualNeural', name: '晓双 · 多语言女声' },
-    { id: 'zh-CN-XiaoyouMultilingualNeural',    name: '晓悠 · 多语言女声' },
-    { id: 'en-US-EmmaMultilingualNeural',       name: 'Emma · 英文多语言女声' },
-    { id: 'en-US-AvaMultilingualNeural',        name: 'Ava · 英文多语言女声' },
-  ];
-  const TTS_STYLES = [
-    { id: 'newscast', name: '📰 新闻播报' },
-    { id: 'gentle',   name: '💗 亲切温柔' },
-    { id: 'cheerful', name: '😊 欢快愉悦' },
-    { id: 'serious',  name: '😐 严肃正式' },
-    { id: 'lyrical',  name: '🎵 抒情优美' },
-    { id: 'soft',     name: '🌸 温和柔美' },
-    { id: 'chat',     name: '💬 聊天对话' },
-  ];
-  const TTS_SPEEDS = [
-    { id: '0.75', name: '🐢 慢速' },
-    { id: '1',    name: '⚡ 正常' },
-    { id: '1.25', name: '🚀 快速' },
-  ];
-  const TTS_PITCHES = [
-    { id: '-20', name: '📉 低沉' },
-    { id: '0',   name: '🎵 标准' },
-    { id: '20',  name: '📈 高亢' },
-  ];
-  const DEFAULT = {
+  // ★ 固定参数：Emma 女声 / 亲切温柔 / 正常语速 / 标准音调
+  const TTS_OPTS = {
     voice: 'en-US-EmmaMultilingualNeural',
     style: 'gentle',
     speed: '1',
     pitch: '0',
   };
-
-  function getLS(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
-  function setLS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-
-  function getConfig() {
-    return {
-      voice: getLS(VOICE_KEY, DEFAULT.voice),
-      style: getLS(STYLE_KEY, DEFAULT.style),
-      speed: getLS(SPEED_KEY, DEFAULT.speed),
-      pitch: getLS(PITCH_KEY, DEFAULT.pitch),
-    };
-  }
-  function setConfig(cfg) {
-    if (cfg.voice) setLS(VOICE_KEY, cfg.voice);
-    if (cfg.style) setLS(STYLE_KEY, cfg.style);
-    if (cfg.speed != null) setLS(SPEED_KEY, String(cfg.speed));
-    if (cfg.pitch != null) setLS(PITCH_KEY, String(cfg.pitch));
-  }
-
-  function listVoices()  { return TTS_VOICES.slice(); }
-  function listStyles()  { return TTS_STYLES.slice(); }
-  function listSpeeds()  { return TTS_SPEEDS.slice(); }
-  function listPitches() { return TTS_PITCHES.slice(); }
 
   // 系统 TTS 仅作回退
   let bestVoice = null;
@@ -1374,8 +1277,7 @@ const Speech = (() => {
     if (typeof window.__LEXIVAULT_TTS__ === 'function') {
       try {
         if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-        const cfg = getConfig();
-        const blobUrl = await window.__LEXIVAULT_TTS__(text, cfg);
+        const blobUrl = await window.__LEXIVAULT_TTS__(text, TTS_OPTS);
         const audio = new Audio(blobUrl);
         currentAudio = audio;
         audio.play();
@@ -1397,6 +1299,7 @@ const Speech = (() => {
       setTimeout(() => { try { synth.resume(); synth.speak(u); } catch (e) {} }, 10);
     } catch (e) {}
   }
+
   function warmup() {
     if (!synth) return;
     try {
@@ -1407,11 +1310,7 @@ const Speech = (() => {
     } catch (e) {}
   }
 
-  return {
-    speak, warmup,
-    listVoices, listStyles, listSpeeds, listPitches,
-    getConfig, setConfig,
-  };
+  return { speak, warmup };
 })();
 
 /* ══════════════════════════════════════════════
@@ -1663,37 +1562,10 @@ function openSettings() {
   }
   setSyncProgress('');
 
-  if (typeof syncVoiceUI === 'function') syncVoiceUI();
-
   $('#settingsModal').hidden = false;
 }
 function closeSettings() {
   $('#settingsModal').hidden = true;
-}
-
-/* ── 语音设置面板 ── */
-function syncVoiceUI() {
-  const cfg = Speech.getConfig();
-
-  const fill = (selId, list, currentId) => {
-    const sel = $(selId);
-    if (!sel) return;
-    sel.innerHTML = list.map(o =>
-      `<option value="${esc(o.id)}" ${o.id === currentId ? 'selected' : ''}>${esc(o.name)}</option>`
-    ).join('');
-  };
-
-  fill('#voiceSelect', Speech.listVoices(),  cfg.voice);
-  fill('#styleSelect', Speech.listStyles(),  cfg.style);
-  fill('#speedSelect', Speech.listSpeeds(),  cfg.speed);
-  fill('#pitchSelect', Speech.listPitches(), cfg.pitch);
-
-  const statusEl = $('#voiceStatus');
-  if (statusEl) {
-    const v = Speech.listVoices().find(x => x.id === cfg.voice);
-    statusEl.className = 'sync-status ok';
-    statusEl.textContent = `✅ 当前：${v ? v.name : cfg.voice}`;
-  }
 }
 
 /* ── 数据统计面板 ── */
@@ -3565,29 +3437,6 @@ function bindEvents() {
   $('#settingsModal').addEventListener('click', e => {
     if (e.target.id === 'settingsModal') closeSettings();
   });
-
-  // ── 发音音色设置 ──
-  const readTTSForm = () => ({
-    voice: $('#voiceSelect').value,
-    style: $('#styleSelect').value,
-    speed: $('#speedSelect').value,
-    pitch: $('#pitchSelect').value,
-  });
-  const _vSave = $('#voiceSave');
-  if (_vSave) {
-    _vSave.onclick = () => {
-      Speech.setConfig(readTTSForm());
-      toast('已保存', 'ok');
-      syncVoiceUI();
-    };
-  }
-  const _vTest = $('#voiceTest');
-  if (_vTest) {
-    _vTest.onclick = () => {
-      Speech.setConfig(readTTSForm());
-      Speech.speak('Hello, this is LexiVault. Serendipity.', { force: true });
-    };
-  }
 
   $('#setExportLight').addEventListener('click', () => exportData(false));
   $('#setExportFull').addEventListener('click', () => exportData(true));

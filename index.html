@@ -114,7 +114,7 @@ body::before{
   position:fixed;left:0;right:0;bottom:0;z-index:30;
   height:calc(var(--tabbar-h) + var(--safe-bottom));
   padding-bottom:var(--safe-bottom);
-  display:grid;grid-template-columns:repeat(3,1fr);
+  display:grid;grid-template-columns:repeat(4,1fr);
   background:rgba(var(--surface-rgb),.88);
   backdrop-filter:blur(20px) saturate(140%);
   -webkit-backdrop-filter:blur(20px) saturate(140%);
@@ -497,6 +497,72 @@ label:first-of-type{margin-top:0}
 .set-info.warn{border-color:rgba(255,180,60,.4);color:#ffb43c}
 .set-info.warn b{color:#ffb43c}
 
+/* ═══════════ 总词库 ═══════════ */
+.lib-toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.lib-toolbar .lib-search{width:100%}
+.lib-filters{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lib-filters select{
+  width:100%;padding:11px 32px 11px 14px;font-size:14px;
+  border-radius:11px;border:1px solid var(--border);
+  background:rgba(var(--text-rgb),.05) url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8ba7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+  background-size:16px;color:var(--text);
+  font-family:inherit;outline:none;-webkit-appearance:none;cursor:pointer;
+}
+.lib-filters select:focus{border-color:var(--accent)}
+.alpha-bar{display:flex;gap:5px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+.alpha-bar::-webkit-scrollbar{display:none}
+.alpha{
+  min-width:30px;height:30px;padding:0 8px;border-radius:9px;
+  border:1px solid var(--border);background:rgba(var(--text-rgb),.04);
+  color:var(--muted);font-size:12px;font-weight:600;font-family:inherit;
+  cursor:pointer;transition:all .2s var(--ease);flex-shrink:0;
+  display:grid;place-items:center;
+}
+.alpha:active{transform:scale(.94)}
+.alpha.on{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;border-color:transparent;
+  box-shadow:0 4px 12px -4px rgba(var(--accent-rgb),1);
+}
+.alpha.off{opacity:.32}
+
+.word-list{display:flex;flex-direction:column;gap:10px}
+.word-item{
+  display:flex;gap:12px;padding:12px;border-radius:14px;
+  background:rgba(var(--surface-rgb),.78);border:1px solid var(--border);
+  cursor:pointer;transition:all .2s var(--ease);
+  animation:fadeUp .3s var(--ease) backwards;
+}
+.word-item:active{transform:scale(.98);border-color:rgba(var(--accent-rgb),.5)}
+.wi-img{
+  width:76px;height:76px;flex-shrink:0;border-radius:11px;overflow:hidden;
+  background:rgba(var(--text-rgb),.05);
+}
+.wi-img img{width:100%;height:100%;object-fit:cover;display:block}
+.wi-img .no-img{display:grid;place-items:center;height:100%;font-size:10.5px;color:var(--muted)}
+.wi-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;justify-content:center}
+.wi-word{
+  font-size:17px;font-weight:800;letter-spacing:-.2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.wi-mean{
+  font-size:13px;color:var(--muted);line-height:1.4;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.wi-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wi-cat{
+  padding:2px 8px;border-radius:99px;
+  background:rgba(var(--accent-rgb),.16);color:var(--accent);
+  font-weight:600;font-size:11px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;
+}
+.wi-ret{display:flex;align-items:center;gap:5px;font-weight:700;font-size:11.5px;flex-shrink:0}
+.wi-ret .rd{width:6px;height:6px;border-radius:50%}
+.lib-empty{
+  text-align:center;padding:50px 20px;color:var(--muted);
+  font-size:13.5px;line-height:1.9;
+}
+.lib-empty .big{font-size:44px;opacity:.4;margin-bottom:12px}
 /* ═══════════ 同步 ═══════════ */
 .sync-field{margin-bottom:10px}
 .sync-field label{
@@ -655,6 +721,31 @@ label:first-of-type{margin-top:0}
 
   </section>
 
+  <!-- 总词库 -->
+  <section class="view" id="view-library">
+    <div class="lib-toolbar">
+      <input class="lib-search lookup-input" id="libSearch" placeholder="搜索单词或中文意思…"
+             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+             style="padding-right:16px">
+      <div class="lib-filters">
+        <select id="libCat"><option value="all">全部分类</option></select>
+        <select id="libSort">
+          <option value="new">最新添加</option>
+          <option value="old">最早上传</option>
+          <option value="az">A → Z</option>
+          <option value="za">Z → A</option>
+          <option value="weak">记忆最弱</option>
+        </select>
+      </div>
+      <div class="alpha-bar" id="alphaBar"></div>
+    </div>
+    <div class="word-list" id="wordList"></div>
+    <div class="lib-empty" id="libEmpty" hidden>
+      <div class="big">📚</div>
+      词库还是空的<br>去「新建」添加第一个单词吧
+    </div>
+  </section>
+
   <!-- 测试 -->
   <section class="view" id="view-test">
 
@@ -725,6 +816,12 @@ label:first-of-type{margin-top:0}
       <circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>
     </svg>
     <span>新建</span>
+  </button>
+  <button class="tab" data-view="library">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/>
+    </svg>
+    <span>词库</span>
   </button>
   <button class="tab" data-view="test">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -886,6 +983,14 @@ label:first-of-type{margin-top:0}
       <button class="btn" id="smartImgRefresh" style="flex:1">🔄 换一批</button>
       <button class="btn" id="smartImgCancel" style="flex:1">取消</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══════ 词库详情弹窗 ═══════ -->
+<div id="wordDetailModal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="close-bar"></div>
+    <div id="wordDetailBody"></div>
   </div>
 </div>
 
@@ -1118,6 +1223,9 @@ const S = {
     get provider() { try { return localStorage.getItem('lexivault.mobile.imgApi.provider') || 'pixabay'; } catch (e) { return 'pixabay'; } },
     get key() { try { return localStorage.getItem('lexivault.mobile.imgApi.key') || ''; } catch (e) { return ''; } },
   },
+
+  // 总词库筛选状态
+  filters: { q: '', cat: 'all', letter: 'all', sort: 'new' },
 };
 
 /* 图片 URL 缓存 */
@@ -1135,9 +1243,10 @@ function imgURL(id) {
    §5  路由
    ══════════════════════════════════════════════ */
 const VIEW_META = {
-  create: ['新建单词', '把一张图片和一个单词绑定起来'],
-  test:   ['测试',     '检验记忆效果'],
-  lookup: ['查词',     '搜索手机里的单词'],
+  create:  ['新建单词', '把一张图片和一个单词绑定起来'],
+  library: ['总词库',   '浏览、搜索、管理你的单词'],
+  test:    ['测试',     '检验记忆效果'],
+  lookup:  ['查词',     '搜索手机里的单词'],
 };
 
 function switchView(name) {
@@ -1155,6 +1264,7 @@ function switchView(name) {
   $('#viewSub').textContent = sub;
   window.scrollTo(0, 0);
   if (name === 'lookup') renderLookup();
+  if (name === 'library') renderLibrary();
 }
 
 /* ══════════════════════════════════════════════
@@ -2042,6 +2152,166 @@ function openSmartImagePicker(word, onPicked) {
 }
 
 /* ══════════════════════════════════════════════
+   §6.73  总词库
+   ══════════════════════════════════════════════ */
+let _libTimer = null;
+
+function renderLibrary() {
+  // 分类下拉填充
+  const cats = [...new Set(S.words.map(w => w.category || '未分类'))].sort();
+  const catSel = $('#libCat');
+  if (catSel) {
+    const cur = S.filters.cat || 'all';
+    catSel.innerHTML = `<option value="all">全部分类 (${S.words.length})</option>` +
+      cats.map(c => `<option value="${esc(c)}">${esc(c)} (${S.words.filter(w => (w.category || '未分类') === c).length})</option>`).join('');
+    catSel.value = (cats.includes(cur) || cur === 'all') ? cur : 'all';
+  }
+
+  // 字母条
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const present = new Set(S.words.map(w => (w.text[0] || '').toUpperCase()));
+  const alphaBar = $('#alphaBar');
+  if (alphaBar) {
+    alphaBar.innerHTML =
+      `<button class="alpha ${S.filters.letter === 'all' ? 'on' : ''}" data-l="all">全部</button>` +
+      letters.map(l => `<button class="alpha ${S.filters.letter === l ? 'on' : ''} ${present.has(l) ? '' : 'off'}" data-l="${l}">${l}</button>`).join('');
+    alphaBar.querySelectorAll('.alpha').forEach(btn => {
+      btn.onclick = () => {
+        const l = btn.dataset.l;
+        S.filters.letter = S.filters.letter === l ? 'all' : l;
+        renderLibrary();
+      };
+    });
+  }
+
+  // 过滤
+  let list = S.words.filter(w => {
+    const { q, cat, letter } = S.filters;
+    if (q) {
+      const k = q.toLowerCase();
+      if (!w.text.toLowerCase().includes(k) && !(w.meaning || '').toLowerCase().includes(k)) return false;
+    }
+    if (cat !== 'all' && (w.category || '未分类') !== cat) return false;
+    if (letter !== 'all' && (w.text[0] || '').toUpperCase() !== letter) return false;
+    return true;
+  });
+
+  // 排序
+  const sort = S.filters.sort;
+  if (sort === 'new') list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  else if (sort === 'old') list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  else if (sort === 'az') list.sort((a, b) => a.text.localeCompare(b.text));
+  else if (sort === 'za') list.sort((a, b) => b.text.localeCompare(a.text));
+  else if (sort === 'weak') list.sort((a, b) => {
+    const ra = retentionOf(a) ?? -1, rb = retentionOf(b) ?? -1;
+    return ra - rb;
+  });
+
+  // 渲染
+  const box = $('#wordList');
+  const empty = $('#libEmpty');
+  if (!box) return;
+  if (!list.length) {
+    box.innerHTML = '';
+    if (empty) empty.hidden = false;
+    return;
+  }
+  if (empty) empty.hidden = true;
+  box.innerHTML = list.map((w, i) => {
+    const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
+    const r = retentionOf(w);
+    const c = retColor(r);
+    const pct = r === null ? '未复习' : Math.round(r * 100) + '%';
+    const meanings = getMeanings(w);
+    const meanText = meanings.length ? meaningsToString(meanings) : '— 暂无释义 —';
+    return `<div class="word-item" data-id="${w.id}" style="animation-delay:${Math.min(i * 18, 300)}ms">
+      <div class="wi-img">
+        ${url ? `<img src="${url}" alt="" loading="lazy">` : `<div class="no-img">无图</div>`}
+      </div>
+      <div class="wi-body">
+        <div class="wi-word">${esc(w.text)}</div>
+        <div class="wi-mean">${esc(meanText)}</div>
+        <div class="wi-foot">
+          <span class="wi-cat">${esc(w.category || '未分类')}</span>
+          <span class="wi-ret" style="color:${c}">
+            <span class="rd" style="background:${c};box-shadow:0 0 8px ${c}"></span>
+            ${pct}
+          </span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  $$('#wordList .word-item').forEach(el => {
+    el.onclick = () => {
+      const w = S.words.find(x => x.id === el.dataset.id);
+      if (w) openLibraryDetail(w);
+    };
+  });
+}
+
+function openLibraryDetail(w) {
+  const modal = $('#wordDetailModal');
+  if (!modal) return;
+  const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
+  const meanings = getMeanings(w);
+  const r = retentionOf(w);
+  const rc = retColor(r);
+  const rTxt = r === null ? '未复习' : Math.round(r * 100) + '%';
+  const meaningsHtml = meanings.length
+    ? meanings.map(m => `
+        <div class="lkd-mean-row">
+          ${m.pos ? `<span class="lkd-pos">${esc(m.pos)}</span>` : ''}
+          <span class="lkd-text">${esc(m.text)}</span>
+        </div>`).join('')
+    : '<div class="lkd-mean-row"><span class="lkd-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
+
+  $('#wordDetailBody').innerHTML = `
+    ${url ? `<img class="lkd-img" src="${url}" alt="">` : ''}
+    <div class="lkd-word">${esc(w.text)}</div>
+    ${w.phonetic ? `<div class="lkd-phon">${esc(w.phonetic)}</div>` : ''}
+    <div class="lkd-meanings">${meaningsHtml}</div>
+    <div class="lkd-meta">
+      <span>${esc(w.category || '未分类')}</span>
+      <span class="lkd-ret" style="color:${rc}">
+        <span class="rd" style="background:${rc};box-shadow:0 0 8px ${rc}"></span>
+        记忆保持 ${rTxt}
+      </span>
+    </div>
+    ${w.sentence ? `<div style="margin-top:12px;padding:11px 14px;border-radius:11px;background:rgba(var(--accent2-rgb),.08);border-left:3px solid var(--accent2);font-size:14px;font-style:italic;line-height:1.6;color:var(--text)">${esc(w.sentence)}</div>` : ''}
+    <div class="lkd-actions" style="margin-top:14px">
+      <button class="btn" id="wdSpeak">🔊 发音</button>
+      <button class="btn danger" id="wdDelete">🗑 删除</button>
+    </div>
+    <button class="btn block" id="wdClose" style="margin-top:10px">关闭</button>`;
+
+  modal.hidden = false;
+  $('#wdSpeak').onclick = () => Speech.speak(w.text);
+  $('#wdClose').onclick = () => { modal.hidden = true; };
+  $('#wdDelete').onclick = async () => {
+    if (!confirm(`删除「${w.text}」？\n\n如果图片没被其他单词引用，会一并删掉。`)) return;
+    await deleteWordFromLibrary(w);
+    modal.hidden = true;
+    renderLibrary();
+    toast('已删除', 'ok');
+  };
+}
+
+async function deleteWordFromLibrary(word) {
+  const imgIds = [...(word.imageIds || [])];
+  S.words = S.words.filter(x => x.id !== word.id);
+  await DB.del('words', word.id);
+  for (const imgId of imgIds) {
+    const stillUsed = S.words.some(x => x.imageIds && x.imageIds.includes(imgId));
+    if (stillUsed) continue;
+    const u = S.urls.get(imgId);
+    if (u) { URL.revokeObjectURL(u); S.urls.delete(imgId); }
+    S.images = S.images.filter(i => i.id !== imgId);
+    await DB.del('images', imgId);
+  }
+}
+
+/* ══════════════════════════════════════════════
    §6.75  WebDAV 客户端（坚果云）
    ══════════════════════════════════════════════ */
 const WebDAV = (() => {
@@ -2623,6 +2893,26 @@ function bindEvents() {
 
   $('#btnSaveWord').addEventListener('click', saveCreateWord);
 
+  // ── 总词库 ──
+  const _libIn = $('#libSearch');
+  if (_libIn) {
+    _libIn.addEventListener('input', e => {
+      S.filters.q = e.target.value;
+      if (_libTimer) clearTimeout(_libTimer);
+      _libTimer = setTimeout(() => renderLibrary(), 150);
+    });
+  }
+  const _libCat = $('#libCat');
+  if (_libCat) _libCat.addEventListener('change', e => {
+    S.filters.cat = e.target.value;
+    renderLibrary();
+  });
+  const _libSort = $('#libSort');
+  if (_libSort) _libSort.addEventListener('change', e => {
+    S.filters.sort = e.target.value;
+    renderLibrary();
+  });
+
   // ── 一键查词（百度翻译）──
   const _btnDF = $('#btnDictFill');
   if (_btnDF) _btnDF.onclick = async () => {
@@ -2847,6 +3137,7 @@ async function boot() {
   }
 
   renderCreate();
+  renderLibrary();
   renderTestSetup();
   renderLookup();
   syncBaiduUI();

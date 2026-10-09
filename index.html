@@ -656,6 +656,17 @@ label:first-of-type{margin-top:0}
   border-color:var(--accent);background:rgba(var(--text-rgb),.08);
   box-shadow:0 0 0 3px rgba(var(--accent-rgb),.16);
 }
+.sync-field select.tts-sel{
+  width:100%;padding:12px 14px;font-size:14px;
+  border-radius:11px;border:1px solid var(--border);
+  background:rgba(var(--text-rgb),.05);color:var(--text);
+  font-family:inherit;outline:none;-webkit-appearance:none;
+  transition:all .2s var(--ease);
+}
+.sync-field select.tts-sel:focus{
+  border-color:var(--accent);background:rgba(var(--text-rgb),.08);
+  box-shadow:0 0 0 3px rgba(var(--accent-rgb),.16);
+}
 .sync-hint{
   font-size:11.5px;color:var(--muted);line-height:1.6;
   padding:10px 12px;border-radius:10px;
@@ -955,18 +966,30 @@ label:first-of-type{margin-top:0}
       </div>
     </div>
 
-    <!-- 发音语音 -->
+    <!-- 发音音色 -->
     <div class="set-section">
-      <div class="set-title">🔊 发音语音</div>
+      <div class="set-title">🔊 发音音色</div>
       <div class="sync-hint">
-        从手机系统里挑一个英文语音。<b>装了 Google 语音包的话，音质比小米自带的好很多。</b>没装的话，去手机「设置 → 更多设置 → 语言和输入法 → 文字转语音输出」里换一个引擎。
+        发音由 <b>微软 Edge TTS</b>（经 VoiceCafe）合成，音质接近真人。<b>需要联网</b>，首次点发音会等 1 秒左右。
+      </div>
+
+      <div class="sync-field">
+        <label>音色</label>
+        <select id="voiceSelect" class="tts-sel"></select>
       </div>
       <div class="sync-field">
-        <label>选择语音</label>
-        <select id="voiceSelect" style="width:100%;padding:12px 14px;font-size:14px;border-radius:11px;border:1px solid var(--border);background:rgba(var(--text-rgb),.05);color:var(--text);font-family:inherit;outline:none;-webkit-appearance:none">
-          <option>加载中…</option>
-        </select>
+        <label>风格</label>
+        <select id="styleSelect" class="tts-sel"></select>
       </div>
+      <div class="sync-field">
+        <label>语速</label>
+        <select id="speedSelect" class="tts-sel"></select>
+      </div>
+      <div class="sync-field">
+        <label>音调</label>
+        <select id="pitchSelect" class="tts-sel"></select>
+      </div>
+
       <div class="sync-actions" style="margin-top:10px">
         <button class="btn" id="voiceTest">🔊 试听</button>
         <button class="btn primary" id="voiceSave">💾 保存</button>
@@ -1264,66 +1287,107 @@ const DB = (() => {
    ══════════════════════════════════════════════ */
 const Speech = (() => {
   const synth = window.speechSynthesis;
-  const VOICE_KEY = 'lexivault.mobile.voice.uri';
+  const VOICE_KEY = 'lexivault.mobile.tts.voiceId';
+  const STYLE_KEY = 'lexivault.mobile.tts.style';
+  const SPEED_KEY = 'lexivault.mobile.tts.speed';
+  const PITCH_KEY = 'lexivault.mobile.tts.pitch';
+
+  // ★ 音色：多语言女声（中文 + 英文）
+  const TTS_VOICES = [
+    { id: 'zh-CN-XiaoxiaoMultilingualNeural',   name: '晓晓 · 多语言女声' },
+    { id: 'zh-CN-XiaochenMultilingualNeural',   name: '晓辰 · 多语言女声' },
+    { id: 'zh-CN-XiaoyuMultilingualNeural',     name: '晓宇 · 多语言女声' },
+    { id: 'zh-CN-XiaoshuangMultilingualNeural', name: '晓双 · 多语言女声' },
+    { id: 'zh-CN-XiaoyouMultilingualNeural',    name: '晓悠 · 多语言女声' },
+    { id: 'en-US-EmmaMultilingualNeural',       name: 'Emma · 英文多语言女声' },
+    { id: 'en-US-AvaMultilingualNeural',        name: 'Ava · 英文多语言女声' },
+  ];
+  const TTS_STYLES = [
+    { id: 'newscast', name: '📰 新闻播报' },
+    { id: 'gentle',   name: '💗 亲切温柔' },
+    { id: 'cheerful', name: '😊 欢快愉悦' },
+    { id: 'serious',  name: '😐 严肃正式' },
+    { id: 'lyrical',  name: '🎵 抒情优美' },
+    { id: 'soft',     name: '🌸 温和柔美' },
+    { id: 'chat',     name: '💬 聊天对话' },
+  ];
+  const TTS_SPEEDS = [
+    { id: '0.75', name: '🐢 慢速' },
+    { id: '1',    name: '⚡ 正常' },
+    { id: '1.25', name: '🚀 快速' },
+  ];
+  const TTS_PITCHES = [
+    { id: '-20', name: '📉 低沉' },
+    { id: '0',   name: '🎵 标准' },
+    { id: '20',  name: '📈 高亢' },
+  ];
+  const DEFAULT = {
+    voice: 'en-US-EmmaMultilingualNeural',
+    style: 'gentle',
+    speed: '1',
+    pitch: '0',
+  };
+
+  function getLS(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
+  function setLS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  function getConfig() {
+    return {
+      voice: getLS(VOICE_KEY, DEFAULT.voice),
+      style: getLS(STYLE_KEY, DEFAULT.style),
+      speed: getLS(SPEED_KEY, DEFAULT.speed),
+      pitch: getLS(PITCH_KEY, DEFAULT.pitch),
+    };
+  }
+  function setConfig(cfg) {
+    if (cfg.voice) setLS(VOICE_KEY, cfg.voice);
+    if (cfg.style) setLS(STYLE_KEY, cfg.style);
+    if (cfg.speed != null) setLS(SPEED_KEY, String(cfg.speed));
+    if (cfg.pitch != null) setLS(PITCH_KEY, String(cfg.pitch));
+  }
+
+  function listVoices()  { return TTS_VOICES.slice(); }
+  function listStyles()  { return TTS_STYLES.slice(); }
+  function listSpeeds()  { return TTS_SPEEDS.slice(); }
+  function listPitches() { return TTS_PITCHES.slice(); }
+
+  // 系统 TTS 仅作回退
   let bestVoice = null;
-
-  function getSavedVoiceURI() {
-    try { return localStorage.getItem(VOICE_KEY) || ''; } catch (e) { return ''; }
-  }
-  function saveVoiceURI(uri) {
-    try {
-      if (uri) localStorage.setItem(VOICE_KEY, uri);
-      else localStorage.removeItem(VOICE_KEY);
-    } catch (e) {}
-  }
-
-  function listVoices() {
+  function pickSystemVoice() {
     const voices = synth ? synth.getVoices() : [];
     const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-    const score = (v) => {
-      const n = (v.name || '').toLowerCase();
-      if (/natural|neural|online/i.test(n)) return 100;
-      if (/google/i.test(n)) return 90;
-      if (/microsoft/i.test(n)) return 80;
-      if (/xiaomi|mi\b/i.test(n)) return 70;
-      if (/enhanced|premium/i.test(n)) return 60;
-      if (v.localService) return 40;
-      return 10;
-    };
-    en.sort((a, b) => {
-      const sa = score(a), sb = score(b);
-      if (sa !== sb) return sb - sa;
-      return (a.name || '').localeCompare(b.name || '');
-    });
-    return en;
+    if (!en.length) return;
+    bestVoice = en.find(v => /natural|neural/i.test(v.name)) || en[0];
   }
-
-  function pickVoice() {
-    const en = listVoices();
-    if (!en.length) { bestVoice = null; return; }
-
-    const saved = getSavedVoiceURI();
-    if (saved) {
-      const match = en.find(v => v.voiceURI === saved || v.name === saved);
-      if (match) { bestVoice = match; return; }
-    }
-
-    const us = en.find(v => v.lang === 'en-US' || v.lang === 'en_US');
-    const gb = en.find(v => v.lang === 'en-GB' || v.lang === 'en_GB');
-    bestVoice = us || gb || en[0];
-  }
-
-  if (synth) {
-    pickVoice();
-    synth.onvoiceschanged = pickVoice;
-  }
+  if (synth) { pickSystemVoice(); synth.onvoiceschanged = pickSystemVoice; }
 
   let lastText = '', lastAt = 0;
-  function speak(text, { force = false } = {}) {
-    if (!synth || !text) return;
+  let currentAudio = null;
+
+  async function speak(text, { force = false } = {}) {
+    if (!text) return;
     const now = Date.now();
     if (!force && text === lastText && now - lastAt < 300) return;
     lastText = text; lastAt = now;
+
+    // ★ 优先用 VoiceCafe TTS
+    if (typeof window.__LEXIVAULT_TTS__ === 'function') {
+      try {
+        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+        const cfg = getConfig();
+        const blobUrl = await window.__LEXIVAULT_TTS__(text, cfg);
+        const audio = new Audio(blobUrl);
+        currentAudio = audio;
+        audio.play();
+        audio.onended = () => { URL.revokeObjectURL(blobUrl); currentAudio = null; };
+        return;
+      } catch (e) {
+        console.warn('[LexiVault] VoiceCafe 失败，回退系统语音', e);
+      }
+    }
+
+    // ★ 回退：系统语音
+    if (!synth) return;
     try {
       synth.cancel();
       const u = new SpeechSynthesisUtterance(text);
@@ -1342,11 +1406,12 @@ const Speech = (() => {
       synth.speak(u);
     } catch (e) {}
   }
-  function setVoice(uri) {
-    saveVoiceURI(uri);
-    pickVoice();
-  }
-  return { speak, warmup, listVoices, setVoice, getCurrent: () => bestVoice };
+
+  return {
+    speak, warmup,
+    listVoices, listStyles, listSpeeds, listPitches,
+    getConfig, setConfig,
+  };
 })();
 
 /* ══════════════════════════════════════════════
@@ -1608,37 +1673,26 @@ function closeSettings() {
 
 /* ── 语音设置面板 ── */
 function syncVoiceUI() {
-  const sel = $('#voiceSelect');
-  const statusEl = $('#voiceStatus');
-  if (!sel) return;
+  const cfg = Speech.getConfig();
 
-  const populate = () => {
-    const voices = Speech.listVoices();
-    if (!voices.length) {
-      sel.innerHTML = '<option value="">（手机里没找到英文语音）</option>';
-      if (statusEl) {
-        statusEl.className = 'sync-status warn';
-        statusEl.textContent = '⚠️ 手机里没有英文语音包，去系统设置里装一个';
-      }
-      return;
-    }
-    const current = Speech.getCurrent();
-    const currentURI = current ? current.voiceURI : '';
-    sel.innerHTML = voices.map(v => {
-      const label = `${v.name} (${v.lang})${v.localService ? '' : ' · 在线'}`;
-      return `<option value="${esc(v.voiceURI)}" ${v.voiceURI === currentURI ? 'selected' : ''}>${esc(label)}</option>`;
-    }).join('');
-    if (statusEl) {
-      statusEl.className = 'sync-status ok';
-      statusEl.textContent = `✅ 找到 ${voices.length} 个英文语音`;
-    }
+  const fill = (selId, list, currentId) => {
+    const sel = $(selId);
+    if (!sel) return;
+    sel.innerHTML = list.map(o =>
+      `<option value="${esc(o.id)}" ${o.id === currentId ? 'selected' : ''}>${esc(o.name)}</option>`
+    ).join('');
   };
 
-  populate();
-  // Android 首次 getVoices() 可能返回空，延迟重试两次
-  if (window.speechSynthesis && !window.speechSynthesis.getVoices().length) {
-    setTimeout(populate, 500);
-    setTimeout(populate, 1500);
+  fill('#voiceSelect', Speech.listVoices(),  cfg.voice);
+  fill('#styleSelect', Speech.listStyles(),  cfg.style);
+  fill('#speedSelect', Speech.listSpeeds(),  cfg.speed);
+  fill('#pitchSelect', Speech.listPitches(), cfg.pitch);
+
+  const statusEl = $('#voiceStatus');
+  if (statusEl) {
+    const v = Speech.listVoices().find(x => x.id === cfg.voice);
+    statusEl.className = 'sync-status ok';
+    statusEl.textContent = `✅ 当前：${v ? v.name : cfg.voice}`;
   }
 }
 
@@ -3512,20 +3566,17 @@ function bindEvents() {
     if (e.target.id === 'settingsModal') closeSettings();
   });
 
-  // ── 语音设置 ──
-  const _vSel = $('#voiceSelect');
-  if (_vSel) {
-    _vSel.onchange = (e) => {
-      Speech.setVoice(e.target.value);
-      toast('已切换语音', 'ok');
-    };
-  }
+  // ── 发音音色设置 ──
+  const readTTSForm = () => ({
+    voice: $('#voiceSelect').value,
+    style: $('#styleSelect').value,
+    speed: $('#speedSelect').value,
+    pitch: $('#pitchSelect').value,
+  });
   const _vSave = $('#voiceSave');
   if (_vSave) {
     _vSave.onclick = () => {
-      const uri = $('#voiceSelect').value;
-      if (!uri) return toast('请先选一个语音', 'warn');
-      Speech.setVoice(uri);
+      Speech.setConfig(readTTSForm());
       toast('已保存', 'ok');
       syncVoiceUI();
     };
@@ -3533,9 +3584,7 @@ function bindEvents() {
   const _vTest = $('#voiceTest');
   if (_vTest) {
     _vTest.onclick = () => {
-      const uri = $('#voiceSelect').value;
-      if (!uri) return toast('请先选一个语音', 'warn');
-      Speech.setVoice(uri);
+      Speech.setConfig(readTTSForm());
       Speech.speak('Hello, this is LexiVault. Serendipity.', { force: true });
     };
   }

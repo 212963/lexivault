@@ -2058,6 +2058,17 @@ async function baiduTranslate(text, from = 'auto', to = 'en') {
   const salt = Date.now().toString();
   const sign = MD5.hex(appId + text + salt + secretKey);
   const url = `https://fanyi-api.baidu.com/api/trans/vip/translate?q=${encodeURIComponent(text)}&from=${from}&to=${to}&appid=${appId}&salt=${salt}&sign=${sign}`;
+
+  // ★ 优先走 Tampermonkey 代理（绕过 CORS）
+  if (typeof window.__LEXIVAULT_DAV_PROXY__ === 'function') {
+    console.log('[LexiVault] 百度翻译走代理');
+    const resp = await window.__LEXIVAULT_DAV_PROXY__('GET', url, {}, null);
+    const txt = await resp.text();
+    const data = JSON.parse(txt);
+    if (data.error_code) throw new Error(data.error_msg || ('错误码 ' + data.error_code));
+    return (data.trans_result || []).map(r => r.dst).join('\n').split('\n').filter(Boolean);
+  }
+
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
@@ -2102,12 +2113,18 @@ async function testBaiduApi() {
     const salt = Date.now().toString();
     const sign = MD5.hex(appId + 'hello' + salt + secretKey);
     const url = `https://fanyi-api.baidu.com/api/trans/vip/translate?q=hello&from=en&to=zh&appid=${appId}&salt=${salt}&sign=${sign}`;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
-    let resp;
-    try { resp = await fetch(url, { signal: ctrl.signal }); }
-    finally { clearTimeout(timer); }
-    const data = await resp.json();
+    let data;
+    if (typeof window.__LEXIVAULT_DAV_PROXY__ === 'function') {
+      const resp = await window.__LEXIVAULT_DAV_PROXY__('GET', url, {}, null);
+      data = JSON.parse(await resp.text());
+    } else {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      let resp;
+      try { resp = await fetch(url, { signal: ctrl.signal }); }
+      finally { clearTimeout(timer); }
+      data = await resp.json();
+    }
     if (data.error_code) {
       const msg = {
         '52001': '请求超时', '52002': '系统错误',

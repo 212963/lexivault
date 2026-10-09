@@ -1,8 +1,8 @@
 /* LexiVault Service Worker · 网络优先，失败才用缓存 */
-const CACHE = 'lexivault-v1';
+const CACHE = 'lexivault-v2';
 
 self.addEventListener('install', e => {
-  self.skipWaiting();
+  e.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', e => {

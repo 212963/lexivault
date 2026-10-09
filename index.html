@@ -511,6 +511,26 @@ label:first-of-type{margin-top:0}
   color:#fff;border-color:transparent;
   box-shadow:0 6px 18px -8px rgba(var(--accent-rgb),1);
 }
+.stage-switch{display:flex;flex-direction:column;gap:8px}
+.stage-btn{
+  display:flex;align-items:center;gap:10px;
+  width:100%;padding:14px 15px;border-radius:13px;
+  border:1px solid var(--border);background:rgba(var(--text-rgb),.04);
+  color:var(--text);font-family:inherit;font-size:14.5px;font-weight:600;
+  cursor:pointer;transition:all .2s var(--ease);
+  min-height:52px;text-align:left;
+}
+.stage-btn:active{transform:scale(.98)}
+.stage-btn::after{
+  content:'○';margin-left:auto;font-size:15px;color:var(--muted);
+}
+.stage-btn.on{
+  border-color:rgba(var(--accent-rgb),.5);
+  background:rgba(var(--accent-rgb),.06);
+}
+.stage-btn.on::after{
+  content:'●';color:var(--accent);
+}
 .set-section:last-child{margin-bottom:0}
 .set-title{
   font-size:11.5px;font-weight:800;letter-spacing:1.5px;
@@ -834,17 +854,6 @@ label:first-of-type{margin-top:0}
     <!-- 设置面板 -->
     <div id="testSetup">
       <div class="card">
-        <h3>测试范围</h3>
-        <div class="chip-row" id="scopeChips">
-          <button class="chip" data-v="today">今天</button>
-          <button class="chip" data-v="week">本周</button>
-          <button class="chip" data-v="month">本月</button>
-          <button class="chip on" data-v="all">全部</button>
-          <button class="chip" data-v="due">待复习</button>
-        </div>
-      </div>
-
-      <div class="card">
         <h3>测试形式</h3>
         <div class="chip-row" id="modeChips">
           <button class="chip on" data-v="spell">看图拼词</button>
@@ -952,6 +961,19 @@ label:first-of-type{margin-top:0}
       <div class="theme-switch">
         <button class="theme-btn" data-theme="dark">🌙 暗色</button>
         <button class="theme-btn" data-theme="light">☀️ 明亮</button>
+      </div>
+    </div>
+
+    <!-- 测试环节 -->
+    <div class="set-section">
+      <div class="set-title">📝 测试环节</div>
+      <div class="sync-hint">
+        勾选测试要覆盖的环节。测试时每个单词会依次走一遍启用的环节，顺序固定为「看词选图 → 看图拼词 → 看中拼英文」。
+      </div>
+      <div class="stage-switch">
+        <button class="stage-btn" data-stage="choice">🖼 看词选图</button>
+        <button class="stage-btn" data-stage="spell">✏️ 看图拼词</button>
+        <button class="stage-btn" data-stage="reverse">🇨🇳 看中拼英文</button>
       </div>
     </div>
 
@@ -1403,6 +1425,8 @@ const DEFAULT_SETTINGS = {
   radius: 16, imgRadius: 14, blur: 16, fontSize: 16,
   srsInit: 0.8, srsGain: 2.2, srsDecay: 0.35,
   theme: 'dark',
+  // 测试环节开关（默认全开）
+  testStages: { choice: true, spell: true, reverse: true },
   // 同步相关（阶段 7 使用）
   webdav: { url: '', user: '', pass: '' },
   lastSyncAt: null,
@@ -1554,10 +1578,20 @@ function openSettings() {
   }
   setSyncProgress('');
 
+  refreshStageButtons();
+
   $('#settingsModal').hidden = false;
 }
 function closeSettings() {
   $('#settingsModal').hidden = true;
+}
+
+/* ── 测试环节开关按钮 ── */
+function refreshStageButtons() {
+  const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
+  document.querySelectorAll('.stage-btn').forEach(btn => {
+    btn.classList.toggle('on', !!st[btn.dataset.stage]);
+  });
 }
 
 /* ── 数据统计面板 ── */
@@ -1790,11 +1824,13 @@ async function saveCreateWord() {
    ══════════════════════════════════════════════ */
 const T = {
   scope: 'all',
-  mode: 'spell',
   count: 10,
-  queue: [],
-  idx: 0,
+  wordQueue: [],   // 抽中的单词列表
+  wordIdx: 0,      // 当前在第几个单词
+  stageIdx: 0,     // 当前单词的第几个环节
+  stages: [],      // 启用的环节列表（如 ['choice','spell','reverse']）
   correct: 0,
+  total: 0,        // 总题数 = 单词数 × 环节数
   answered: false,
   wrong: [],
 };
@@ -1856,11 +1892,25 @@ function renderTestSetup() {
   const pool = scopeWords(T.scope);
   const scopeName = { today:'今天导入', week:'本周导入', month:'本月导入', all:'全部', due:'待复习' }[T.scope];
   const noImg = S.words.filter(w => !w.imageIds || !w.imageIds.length).length;
-  $('#testInfo').innerHTML =
-    `当前范围 <b>${scopeName}</b> 共 <b>${pool.length}</b> 个可测单词` +
-    (noImg ? `<br><span style="font-size:12px;color:var(--muted)">另有 ${noImg} 个单词没绑图，不参与测试</span>` : '') +
-    (pool.length < 4 ? `<br><span style="color:#ffb43c;font-size:12.5px">⚠ 单词不足 4 个，干扰项会相应减少</span>` : '');
-  $('#btnStartTest').disabled = pool.length === 0;
+
+  const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
+  const stageNames = [];
+  if (st.choice)  stageNames.push('看词选图');
+  if (st.spell)   stageNames.push('看图拼词');
+  if (st.reverse) stageNames.push('看中拼英文');
+  const stageCount = stageNames.length;
+
+  let html = `当前范围 <b>${scopeName}</b> 共 <b>${pool.length}</b> 个可测单词`;
+  if (stageCount) {
+    html += `<br>测试环节：<b>${stageNames.join(' → ')}</b>（每个单词过 ${stageCount} 关）`;
+  } else {
+    html += `<br><span style="color:#ffb43c">⚠ 还没启用任何测试环节，去设置里勾选</span>`;
+  }
+  if (noImg)          html += `<br><span style="font-size:12px;color:var(--muted)">另有 ${noImg} 个单词没绑图，不参与测试</span>`;
+  if (pool.length < 4) html += `<br><span style="color:#ffb43c;font-size:12.5px">⚠ 单词不足 4 个，干扰项会相应减少</span>`;
+
+  $('#testInfo').innerHTML = html;
+  $('#btnStartTest').disabled = pool.length === 0 || stageCount === 0;
 }
 function buildOptions(word) {
   const others = S.words.filter(x => x.id !== word.id && x.imageIds && x.imageIds.length);
@@ -1877,23 +1927,30 @@ function buildOptions(word) {
 function startTest() {
   const pool = scopeWords(T.scope);
   if (!pool.length) return toast('当前范围没有可测单词', 'warn');
+
+  const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
+  const stages = [];
+  if (st.choice)  stages.push('choice');
+  if (st.spell)   stages.push('spell');
+  if (st.reverse) stages.push('reverse');
+  if (!stages.length) return toast('请到设置里至少启用一个测试环节', 'warn');
+
   const n = T.count === 0 ? pool.length : Math.min(T.count, pool.length);
-  const picked = shuffle(pool).slice(0, n);
-  T.queue = picked.map(w => {
-    let type;
-    if (T.mode === 'mixed') {
-      const r = Math.random();
-      type = r < 0.4 ? 'spell' : (r < 0.7 ? 'choice' : 'reverse');
-    } else type = T.mode;
-    return { word: w, type, options: type === 'choice' ? buildOptions(w) : null };
-  });
-  T.idx = 0; T.correct = 0; T.answered = false; T.wrong = [];
+  T.wordQueue = shuffle(pool).slice(0, n);
+  T.stages = stages;
+  T.wordIdx = 0;
+  T.stageIdx = 0;
+  T.correct = 0;
+  T.total = T.wordQueue.length * stages.length;
+  T.answered = false;
+  T.wrong = [];
+
   $('#testSetup').hidden = true;
   $('#testRun').hidden = false;
   $('#testResult').hidden = true;
   renderQuestion();
 }
-function bindSpellInput(q) {
+function bindSpellInput(word) {
   const inp = $('#spellInput');
   setTimeout(() => {
     inp.focus();
@@ -1904,20 +1961,56 @@ function bindSpellInput(q) {
   });
   $('#btnSubmitSpell').onclick = submitSpell;
   $('#btnHint').onclick = () => {
-    inp.value = q.word.text[0];
+    inp.value = word.text[0];
     inp.focus();
   };
 }
 function renderQuestion() {
-  const q = T.queue[T.idx];
-  if (!q) return showResult();
-  T.answered = false;
-  const total = T.queue.length;
-  const url = imgURL(q.word.imageIds[0]);
+  // 跳过已完成的单词
+  while (T.wordIdx < T.wordQueue.length && T.stageIdx >= T.stages.length) {
+    T.wordIdx++;
+    T.stageIdx = 0;
+  }
+  if (T.wordIdx >= T.wordQueue.length) return showResult();
 
-  if (q.type === 'spell') {
+  const w = T.wordQueue[T.wordIdx];
+  const stage = T.stages[T.stageIdx];
+  T.answered = false;
+
+  const curNum = T.wordIdx * T.stages.length + T.stageIdx + 1;
+  const totalNum = T.total;
+  const stageName = { choice: '看词选图', spell: '看图拼词', reverse: '看中拼英文' }[stage];
+  const progressText = `第 ${curNum} / ${totalNum} 题 · ${stageName}`;
+  const url = imgURL(w.imageIds[0]);
+
+  if (stage === 'choice') {
+    const opts = buildOptions(w);
     $('#testRun').innerHTML = `
-      <div class="quiz-progress">第 ${T.idx + 1} / ${total} 题 · 看图拼单词</div>
+      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-card">
+        <div class="quiz-word">${esc(w.text)}</div>
+        <div style="text-align:center;margin-bottom:6px">
+          <button class="btn" id="btnQuizSpeak" style="font-size:13.5px;min-height:38px">🔊 发音</button>
+        </div>
+        <div class="quiz-grid">
+          ${opts.map(id => `<button class="quiz-opt" data-img="${id}"><img src="${imgURL(id)}" alt=""></button>`).join('')}
+        </div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
+    $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
+    // 阶段1：看词选图 —— 自动播放
+    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
+    $$('.quiz-opt').forEach(b => b.onclick = () => {
+      if (T.answered) return;
+      const ok = b.dataset.img === w.imageIds[0];
+      b.classList.add(ok ? 'ok' : 'bad');
+      if (!ok) $$('.quiz-opt').forEach(x => { if (x.dataset.img === w.imageIds[0]) x.classList.add('ok'); });
+      finishQuestion(ok, w);
+    });
+
+  } else if (stage === 'spell') {
+    $('#testRun').innerHTML = `
+      <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card">
         <img class="quiz-img" src="${url}" alt="">
         <button class="btn block" id="btnQuizSpeak" style="margin-top:10px;font-size:13.5px;min-height:38px">🔊 听发音</button>
@@ -1930,15 +2023,17 @@ function renderQuestion() {
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;
-    bindSpellInput(q);
-    $('#btnQuizSpeak').onclick = () => Speech.speak(q.word.text);
+    bindSpellInput(w);
+    $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
+    // 阶段2：看图拼词 —— 自动播放
+    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
 
-  } else if (q.type === 'reverse') {
-    const meaning = getMeanings(q.word).map(m =>
+  } else if (stage === 'reverse') {
+    const meaning = getMeanings(w).map(m =>
       (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
     ).join('；');
     $('#testRun').innerHTML = `
-      <div class="quiz-progress">第 ${T.idx + 1} / ${total} 题 · 看中文拼英文</div>
+      <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card">
         <img class="quiz-img" src="${url}" alt="" style="max-height:26vh">
         <div class="rev-meaning" style="margin-top:10px">${meaning || '（无释义）'}</div>
@@ -1952,56 +2047,33 @@ function renderQuestion() {
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;
-    bindSpellInput(q);
-    $('#btnQuizSpeak').onclick = () => Speech.speak(q.word.text);
-
-  } else {
-    $('#testRun').innerHTML = `
-      <div class="quiz-progress">第 ${T.idx + 1} / ${total} 题 · 看单词选图片</div>
-      <div class="quiz-card">
-        <div class="quiz-word">${esc(q.word.text)}</div>
-        <div style="text-align:center;margin-bottom:6px">
-          <button class="btn" id="btnQuizSpeak" style="font-size:13.5px;min-height:38px">🔊 发音</button>
-        </div>
-        <div class="quiz-grid">
-          ${q.options.map(id => `<button class="quiz-opt" data-img="${id}"><img src="${imgURL(id)}" alt=""></button>`).join('')}
-        </div>
-        <div class="quiz-feedback" id="quizFb"></div>
-      </div>`;
-    $('#btnQuizSpeak').onclick = () => Speech.speak(q.word.text);
-    setTimeout(() => { if (!T.answered) Speech.speak(q.word.text); }, 400);
-    $$('.quiz-opt').forEach(b => b.onclick = () => {
-      if (T.answered) return;
-      const ok = b.dataset.img === q.word.imageIds[0];
-      b.classList.add(ok ? 'ok' : 'bad');
-      if (!ok) $$('.quiz-opt').forEach(x => { if (x.dataset.img === q.word.imageIds[0]) x.classList.add('ok'); });
-      finishQuestion(ok);
-    });
+    bindSpellInput(w);
+    $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
+    // 阶段3：看中拼英文 —— 不自动播放
   }
 }
 function submitSpell() {
   if (T.answered) return;
-  const q = T.queue[T.idx];
+  const w = T.wordQueue[T.wordIdx];
   const inp = $('#spellInput');
   const val = inp.value.trim().toLowerCase();
   if (!val) return;
-  const ok = val === q.word.text.toLowerCase();
+  const ok = val === w.text.toLowerCase();
   inp.classList.add(ok ? 'ok' : 'bad');
-  if (!ok) inp.value = q.word.text;
-  finishQuestion(ok);
+  if (!ok) inp.value = w.text;
+  finishQuestion(ok, w);
 }
-function finishQuestion(ok) {
+function finishQuestion(ok, word) {
   T.answered = true;
-  const q = T.queue[T.idx];
-  if (ok) T.correct++; else T.wrong.push(q.word);
-  gradeWord(q.word, ok);
+  if (ok) T.correct++; else T.wrong.push(word);
+  gradeWord(word, ok);
   const fb = $('#quizFb');
   if (fb) {
     fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
-    fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${q.word.text}`;
+    fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
   }
-  Speech.speak(q.word.text);
-  setTimeout(() => showLearnCard(q, ok), 700);
+  Speech.speak(word.text);
+  setTimeout(() => showLearnCard(word, ok), 700);
 }
 function showLearnCard(q, ok) {
   const w = q.word;
@@ -2037,7 +2109,7 @@ function showLearnCard(q, ok) {
       document.removeEventListener('keydown', _learnEnterHandler);
       _learnEnterHandler = null;
     }
-    T.idx++;
+    T.stageIdx++;
     renderQuestion();
   };
   _learnEnterHandler = (e) => {
@@ -2082,13 +2154,20 @@ function showResult() {
     </div>`;
   const _bRW = $('#btnRetryWrong');
   if (_bRW) _bRW.onclick = () => {
-    const wrongWords = T.wrong.slice();
+    // 去重（同一个词可能错了多次）
+    const seen = new Set();
+    const wrongWords = [];
+    for (const w of T.wrong) {
+      if (!seen.has(w.id)) { seen.add(w.id); wrongWords.push(w); }
+    }
     if (!wrongWords.length) return;
-    T.queue = wrongWords.map(w => {
-      const type = T.mode === 'mixed' ? (Math.random() < 0.5 ? 'spell' : 'choice') : T.mode;
-      return { word: w, type, options: type === 'choice' ? buildOptions(w) : null };
-    });
-    T.idx = 0; T.correct = 0; T.answered = false; T.wrong = [];
+    T.wordQueue = wrongWords;
+    T.wordIdx = 0;
+    T.stageIdx = 0;
+    T.correct = 0;
+    T.total = wrongWords.length * T.stages.length;
+    T.answered = false;
+    T.wrong = [];
     $('#testResult').hidden = true;
     $('#testRun').hidden = false;
     renderQuestion();
@@ -3331,7 +3410,6 @@ function bindEvents() {
     });
   };
   chipHandler('scopeChips', 'scope', renderTestSetup);
-  chipHandler('modeChips', 'mode');
   chipHandler('countChips', 'count');
 
   $('#btnStartTest').addEventListener('click', () => {
@@ -3364,6 +3442,20 @@ function bindEvents() {
       refreshThemeButtons();
       toast(theme === 'light' ? '已切换到明亮主题' : '已切换到暗色主题', 'ok');
     });
+  });
+
+  // ── 测试环节开关 ──
+  document.querySelectorAll('.stage-btn').forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.dataset.stage;
+      const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
+      st[key] = !st[key];
+      S.settings.testStages = st;
+      saveSettings();
+      refreshStageButtons();
+      renderTestSetup();
+      toast(st[key] ? '已开启' : '已关闭', 'ok');
+    };
   });
 
   // ── 弹窗：点击背景关闭 ──

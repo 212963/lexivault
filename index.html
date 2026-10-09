@@ -864,7 +864,9 @@ label:first-of-type{margin-top:0}
       <div class="card">
         <h3>测试范围</h3>
         <div class="chip-row" id="scopeChips">
+          <button class="chip" data-v="yesterday">昨天</button>
           <button class="chip" data-v="today">今天</button>
+          <button class="chip" data-v="last3days">近 3 天</button>
           <button class="chip" data-v="week">本周</button>
           <button class="chip" data-v="month">本月</button>
           <button class="chip on" data-v="all">全部</button>
@@ -1887,19 +1889,33 @@ function meaningsToString(arr) {
 }
 function scopeWords(scope) {
   const now = nowMs();
-  const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+  const d0 = new Date(); d0.setHours(0, 0, 0, 0);   // 今天 00:00
+  const d0ms = d0.getTime();
+  const d1ms = d0ms - DAY;                          // 昨天 00:00
+  const d3ms = d0ms - 3 * DAY;                      // 大前天 00:00
+
   return S.words.filter(w => {
     if (!w.imageIds || !w.imageIds.length) return false;
-    if (scope === 'today') return w.createdAt >= d0.getTime();
-    if (scope === 'week') return now - w.createdAt <= 7 * DAY;
-    if (scope === 'month') return now - w.createdAt <= 30 * DAY;
-    if (scope === 'due') { const r = retentionOf(w); return r === null || r < 0.7; }
+    if (scope === 'today')      return w.createdAt >= d0ms;
+    if (scope === 'yesterday')  return w.createdAt >= d1ms && w.createdAt < d0ms;
+    if (scope === 'last3days')  return w.createdAt >= d3ms && w.createdAt < d0ms;
+    if (scope === 'week')       return now - w.createdAt <= 7 * DAY;
+    if (scope === 'month')      return now - w.createdAt <= 30 * DAY;
+    if (scope === 'due')        { const r = retentionOf(w); return r === null || r < 0.7; }
     return true;
   });
 }
 function renderTestSetup() {
   const pool = scopeWords(T.scope);
-  const scopeName = { today:'今天导入', week:'本周导入', month:'本月导入', all:'全部', due:'待复习' }[T.scope];
+  const scopeName = {
+    today:'今天导入',
+    yesterday:'昨天导入',
+    last3days:'近 3 天导入',
+    week:'本周导入',
+    month:'本月导入',
+    all:'全部',
+    due:'待复习'
+  }[T.scope];
   const noImg = S.words.filter(w => !w.imageIds || !w.imageIds.length).length;
 
   const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});

@@ -2128,23 +2128,53 @@ async function fetchWordInfoFromApiHz(word) {
   if (Number(data.code) !== 200) return null;
 
   // 音标：优先英式
-  let phonetic = (data.british || data.american || '').trim();
-  // 词性 + 释义从 jbjs 里拆
-  const jbjs = (data.jbjs || '').trim();
-  let pos = '';
-  let meaning = jbjs;
-  const m = jbjs.match(/^([a-z]{1,6}\.)\s*(.+)$/i);
-  if (m) {
-    pos = m[1].toLowerCase();
-    meaning = m[2].trim();
+  const phonetic = (data.british || data.american || '').trim();
+
+  // 释义：拆分 + 清理
+  const meanings = parseApiHzMeanings((data.jbjs || '').trim());
+
+  return { phonetic, meanings };
+}
+
+/* 把接口盒子返回的 jbjs 拆成多个 {pos, text}
+   输入示例：
+   "prep.当做 conj.与...一样,当...之时,象,因为 [域] American Samoa,东萨摩亚 [军] Air to Surface,空对地 (As)symb [化]砷 (arsenic)"
+   输出：
+   [ {pos:'prep.',text:'当做'}, {pos:'conj.',text:'与...一样,当...之时,象,因为'} ] */
+function parseApiHzMeanings(raw) {
+  if (!raw) return [];
+  // 按词性标记切段（形如 prep. / conj. / n. / vt. 等）
+  const re = /([a-z]{1,6}\.)/gi;
+  const parts = [];
+  let lastIndex = 0, lastPos = '', m;
+  while ((m = re.exec(raw)) !== null) {
+    if (lastPos) parts.push({ pos: lastPos, text: raw.slice(lastIndex, m.index) });
+    lastPos = m[1].toLowerCase();
+    lastIndex = m.index + m[1].length;
   }
-  return { phonetic, pos, meaning };
+  if (lastPos) parts.push({ pos: lastPos, text: raw.slice(lastIndex) });
+
+  // 逐段清理：切掉 [xxx] / (xxx) 及之后的内容，去掉尾部标点
+  const out = [];
+  for (const p of parts) {
+    let t = p.text;
+    const bi = t.search(/\[[^\]]*\]/);     // [域]、[军]、[化] 等
+    if (bi >= 0) t = t.slice(0, bi);
+    const pi = t.search(/\([^)]*\)/);      // (As)symb 等
+    if (pi >= 0) t = t.slice(0, pi);
+    t = t.replace(/[,，;；\s]+$/, '').trim();
+    if (t) out.push({ pos: p.pos, text: t });
+  }
+  return out;
 }
 
 /* 把 fetchWordInfo 的结果填进新建表单 */
 function fillWordInfo(info) {
   if (!info) return;
-  if (info.meaning) {
+  if (info.meanings && info.meanings.length) {
+    C.meanings = info.meanings.map(m => ({ pos: m.pos || '', text: m.text }));
+    renderCreateMeanings();
+  } else if (info.meaning) {
     C.meanings = [{ pos: info.pos || '', text: info.meaning }];
     renderCreateMeanings();
   }

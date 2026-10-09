@@ -862,12 +862,13 @@ label:first-of-type{margin-top:0}
     <!-- 设置面板 -->
     <div id="testSetup">
       <div class="card">
-        <h3>测试形式</h3>
-        <div class="chip-row" id="modeChips">
-          <button class="chip on" data-v="spell">看图拼词</button>
-          <button class="chip" data-v="choice">看词选图</button>
-          <button class="chip" data-v="reverse">看中拼英</button>
-          <button class="chip" data-v="mixed">混合</button>
+        <h3>测试范围</h3>
+        <div class="chip-row" id="scopeChips">
+          <button class="chip" data-v="today">今天</button>
+          <button class="chip" data-v="week">本周</button>
+          <button class="chip" data-v="month">本月</button>
+          <button class="chip on" data-v="all">全部</button>
+          <button class="chip" data-v="due">待复习</button>
         </div>
       </div>
 
@@ -2083,11 +2084,12 @@ function finishQuestion(ok, word) {
   Speech.speak(word.text);
   setTimeout(() => showLearnCard(word, ok), 700);
 }
-function showLearnCard(q, ok) {
-  const w = q.word;
+function showLearnCard(word, ok) {
+  const w = word;
   const imgUrl = (w.imageIds && w.imageIds.length) ? imgURL(w.imageIds[0]) : null;
   const meanings = getMeanings(w);
-  const total = T.queue.length;
+  const curNum = T.wordIdx * T.stages.length + T.stageIdx + 1;
+  const totalNum = T.total;
   const meaningHtml = meanings.length
     ? meanings.map(m => `
         <div class="lc-mean-row">
@@ -2096,7 +2098,7 @@ function showLearnCard(q, ok) {
         </div>`).join('')
     : '<div class="lc-mean-row"><span class="lc-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
   $('#testRun').innerHTML = `
-    <div class="quiz-progress">第 ${T.idx + 1} / ${total} 题 · 学习一下</div>
+    <div class="quiz-progress">第 ${curNum} / ${totalNum} 题 · 学习一下</div>
     <div class="learn-card ${ok ? 'ok' : 'bad'}">
       <div class="lc-badge">${ok ? '🎉 答对了' : '📖 记一下'}</div>
       ${imgUrl ? `<img class="lc-img" src="${imgUrl}" alt="">` : ''}
@@ -2130,9 +2132,9 @@ function showLearnCard(q, ok) {
 function showResult() {
   $('#testRun').hidden = true;
   $('#testResult').hidden = false;
-  const total = T.queue.length;
+  const total = T.total;
   const acc = total ? Math.round(T.correct / total * 100) : 0;
-  const words = T.queue.map(q => q.word);
+  const words = T.wordQueue;
   const items = words.map(w => {
     const r = retentionOf(w);
     const pct = r === null ? 0 : Math.round(r * 100);

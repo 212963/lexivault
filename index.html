@@ -20,6 +20,10 @@
   --radius:16px; --img-radius:14px; --blur:16px; --font-size:16px;
   --border:rgba(234,234,245,.09);
   --shadow:0 14px 34px -14px rgba(0,0,0,.7);
+  --overlay:rgba(0,0,0,.6);
+  --glow-a:rgba(124,92,255,.18);
+  --glow-b:rgba(34,211,238,.12);
+  --glow-c:rgba(124,92,255,.06);
   --ease:cubic-bezier(.22,1,.36,1);
   --safe-top:max(env(safe-area-inset-top,0px),36px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
@@ -37,9 +41,9 @@ body{
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(700px 420px at 10% -6%,rgba(var(--accent-rgb),.18),transparent 62%),
-    radial-gradient(600px 400px at 100% 4%,rgba(var(--accent2-rgb),.12),transparent 62%),
-    radial-gradient(600px 600px at 50% 110%,rgba(var(--accent-rgb),.06),transparent 60%);
+    radial-gradient(700px 420px at 10% -6%,var(--glow-a),transparent 62%),
+    radial-gradient(600px 400px at 100% 4%,var(--glow-b),transparent 62%),
+    radial-gradient(600px 600px at 50% 110%,var(--glow-c),transparent 60%);
 }
 ::-webkit-scrollbar{width:0;height:0}
 
@@ -139,7 +143,7 @@ body::before{
 
 /* ═══════════ 弹窗 ═══════════ */
 .modal{
-  position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.6);
+  position:fixed;inset:0;z-index:9998;background:var(--overlay);
   display:flex;align-items:flex-end;justify-content:center;
   backdrop-filter:blur(6px);
   animation:fadeIn .22s var(--ease);
@@ -515,6 +519,32 @@ label:first-of-type{margin-top:0}
 .set-info.warn{border-color:rgba(255,180,60,.4);color:#ffb43c}
 .set-info.warn b{color:#ffb43c}
 
+/* ═══════════ 数据统计 ═══════════ */
+.stat-card{
+  padding:16px;border-radius:14px;
+  background:rgba(var(--text-rgb),.04);
+  border:1px solid var(--border);
+  margin-bottom:14px;
+}
+.stat-card h4{
+  font-size:14px;font-weight:700;margin-bottom:10px;
+}
+.stat-row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:5px 0;font-size:13.5px;gap:12px;
+}
+.stat-row .k{color:var(--muted);flex-shrink:0}
+.stat-row .v{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.stat-divider{
+  height:1px;background:var(--border);margin:10px 0;
+}
+.stat-note{
+  font-size:11.5px;color:var(--muted);line-height:1.65;
+  padding:9px 11px;border-radius:9px;
+  background:rgba(var(--text-rgb),.035);
+  margin-top:10px;
+}
+
 /* ═══════════ 总词库 ═══════════ */
 .lib-toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
 .lib-toolbar .lib-search{width:100%}
@@ -668,6 +698,11 @@ label:first-of-type{margin-top:0}
     <h1 id="viewTitle">新建单词</h1>
     <p class="sub" id="viewSub">把一张图片和一个单词绑定起来</p>
   </div>
+  <button class="icon-btn" id="btnStats" title="统计">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 20V10M12 20V4M19 20v-8"/>
+    </svg>
+  </button>
   <button class="icon-btn" id="btnSettings" title="设置">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="3"/>
@@ -855,6 +890,16 @@ label:first-of-type{margin-top:0}
     <span>查词</span>
   </button>
 </nav>
+
+<!-- ═══════ 数据统计弹窗 ═══════ -->
+<div id="statsModal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="close-bar"></div>
+    <h3>数据统计</h3>
+    <div id="statsBody"></div>
+    <button class="btn block lg" id="statsClose" style="margin-top:20px">关闭</button>
+  </div>
+</div>
 
 <!-- ═══════ 设置弹窗 ═══════ -->
 <div id="settingsModal" class="modal" hidden>
@@ -1215,11 +1260,95 @@ const Speech = (() => {
 })();
 
 /* ══════════════════════════════════════════════
+   §2.6  数据统计（本地记录调用量 / 流量）
+   ══════════════════════════════════════════════ */
+const STATS_KEY = 'lexivault.mobile.stats';
+
+const Stats = (() => {
+  function todayKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function monthKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  function load() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
+      return {
+        cloudUp:   raw.cloudUp   || {},
+        cloudDown: raw.cloudDown || {},
+        pixabay:   raw.pixabay   || {},
+        apihz:     raw.apihz     || {},
+      };
+    } catch (e) {
+      return { cloudUp: {}, cloudDown: {}, pixabay: {}, apihz: {} };
+    }
+  }
+  function save(s) {
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (e) {}
+  }
+  function normalize(entry, nowDay, nowMonth) {
+    let daily = entry.daily;
+    let monthly = entry.monthly;
+    if (!daily || daily.date !== nowDay) daily = { date: nowDay, value: 0 };
+    if (!monthly || monthly.month !== nowMonth) monthly = { month: nowMonth, value: 0 };
+    return { daily, monthly };
+  }
+  function add(scope, amount) {
+    if (!amount || amount <= 0) return;
+    const s = load();
+    const nowDay = todayKey(), nowMonth = monthKey();
+    const b = normalize(s[scope] || {}, nowDay, nowMonth);
+    b.daily.value += amount;
+    b.monthly.value += amount;
+    s[scope] = { daily: b.daily, monthly: b.monthly };
+    save(s);
+  }
+  function getAll() {
+    const s = load();
+    const nowDay = todayKey(), nowMonth = monthKey();
+    const out = {};
+    for (const scope of ['cloudUp', 'cloudDown', 'pixabay', 'apihz']) {
+      const b = normalize(s[scope] || {}, nowDay, nowMonth);
+      out[scope] = { today: b.daily.value, month: b.monthly.value };
+    }
+    return out;
+  }
+  return { add, getAll };
+})();
+
+/* ══════════════════════════════════════════════
    §3  设置（手机版精简：只保留必要项）
    ══════════════════════════════════════════════ */
 const THEMES = {
-  dark:  { bg: '#0a0a12', surface: '#14141f', text: '#eaeaf5', muted: '#8b8ba7' },
-  light: { bg: '#f4f4fa', surface: '#ffffff', text: '#16161f', muted: '#6d6d88' },
+  dark: {
+    bg: '#0a0a12',
+    surface: '#14141f',
+    surface2: '#1b1b28',
+    text: '#eaeaf5',
+    muted: '#8b8ba7',
+    border: 'rgba(234,234,245,.09)',
+    shadow: '0 14px 34px -14px rgba(0,0,0,.7)',
+    overlay: 'rgba(0,0,0,.6)',
+    glowAAlpha: 0.18,
+    glowBAlpha: 0.12,
+    glowCAlpha: 0.06,
+  },
+  light: {
+    bg: '#eef0f7',
+    surface: '#ffffff',
+    surface2: '#f3f4fa',
+    text: '#16161f',
+    muted: '#6b6b85',
+    border: 'rgba(20,20,31,.10)',
+    shadow: '0 10px 28px -14px rgba(31,38,74,.16)',
+    overlay: 'rgba(20,20,31,.32)',
+    glowAAlpha: 0.06,
+    glowBAlpha: 0.05,
+    glowCAlpha: 0.04,
+  },
 };
 
 const DEFAULT_SETTINGS = {
@@ -1239,20 +1368,24 @@ function applySettings() {
   const r = document.documentElement.style;
   const accent = S.settings.accent || '#7c5cff';
   const accent2 = S.settings.accent2 || '#22d3ee';
+  const accentRGB = hexToRgb(accent);
+  const accent2RGB = hexToRgb(accent2);
   r.setProperty('--accent', accent);
-  r.setProperty('--accent-rgb', hexToRgb(accent));
+  r.setProperty('--accent-rgb', accentRGB);
   r.setProperty('--accent2', accent2);
-  r.setProperty('--accent2-rgb', hexToRgb(accent2));
+  r.setProperty('--accent2-rgb', accent2RGB);
   r.setProperty('--bg', t.bg);
   r.setProperty('--surface', t.surface);
   r.setProperty('--surface-rgb', hexToRgb(t.surface));
   r.setProperty('--text', t.text);
   r.setProperty('--text-rgb', hexToRgb(t.text));
   r.setProperty('--muted', t.muted);
-  r.setProperty('--border', theme === 'light' ? 'rgba(22,22,31,.10)' : 'rgba(234,234,245,.09)');
-  r.setProperty('--shadow', theme === 'light'
-    ? '0 14px 34px -14px rgba(0,0,0,.14)'
-    : '0 14px 34px -14px rgba(0,0,0,.7)');
+  r.setProperty('--border', t.border);
+  r.setProperty('--shadow', t.shadow);
+  r.setProperty('--overlay', t.overlay);
+  r.setProperty('--glow-a', `rgba(${accentRGB},${t.glowAAlpha})`);
+  r.setProperty('--glow-b', `rgba(${accent2RGB},${t.glowBAlpha})`);
+  r.setProperty('--glow-c', `rgba(${accentRGB},${t.glowCAlpha})`);
   document.body.style.background = t.bg;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = t.bg;
@@ -1375,6 +1508,65 @@ function openSettings() {
 }
 function closeSettings() {
   $('#settingsModal').hidden = true;
+}
+
+/* ── 数据统计面板 ── */
+function openStats() {
+  const body = $('#statsBody');
+  if (!body) return;
+  body.innerHTML = renderStatsHTML();
+  $('#statsModal').hidden = false;
+}
+
+function renderStatsHTML() {
+  const s = Stats.getAll();
+
+  const fmt = (bytes) => {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+    return (bytes / 1073741824).toFixed(2) + ' GB';
+  };
+
+  const upToday   = s.cloudUp.today;
+  const downToday = s.cloudDown.today;
+  const upMonth   = s.cloudUp.month;
+  const downMonth = s.cloudDown.month;
+  const lastSync  = S.settings.lastSyncAt ? timeAgo(S.settings.lastSyncAt) : '从未';
+
+  const pbToday = s.pixabay.today;
+  const pbMonth = s.pixabay.month;
+
+  const ahToday = s.apihz.today;
+  const ahMonth = s.apihz.month;
+
+  return `
+    <div class="stat-card">
+      <h4>☁️ 坚果云同步</h4>
+      <div class="stat-row"><span class="k">今日上传</span><span class="v">约 ${fmt(upToday)}</span></div>
+      <div class="stat-row"><span class="k">今日下载</span><span class="v">约 ${fmt(downToday)}</span></div>
+      <div class="stat-row"><span class="k">本月上传</span><span class="v">${fmt(upMonth)} / 1 GB</span></div>
+      <div class="stat-row"><span class="k">本月下载</span><span class="v">${fmt(downMonth)} / 3 GB</span></div>
+      <div class="stat-divider"></div>
+      <div class="stat-row"><span class="k">上次同步</span><span class="v">${lastSync}</span></div>
+      <div class="stat-note">坚果云免费额度：上传 1 GB/月 · 下载 3 GB/月。数字为本地估算，非服务端精确值。</div>
+    </div>
+
+    <div class="stat-card">
+      <h4>🖼 智能配图（Pixabay）</h4>
+      <div class="stat-row"><span class="k">今日调用</span><span class="v">${pbToday} 次</span></div>
+      <div class="stat-row"><span class="k">本月调用</span><span class="v">${pbMonth} 次</span></div>
+      <div class="stat-note">Pixabay 免费限制：100 请求/分钟。正常使用几乎不会触发。</div>
+    </div>
+
+    <div class="stat-card">
+      <h4>📚 接口盒子词典</h4>
+      <div class="stat-row"><span class="k">今日调用</span><span class="v">${ahToday} 次</span></div>
+      <div class="stat-row"><span class="k">本月调用</span><span class="v">${ahMonth} 次</span></div>
+      <div class="stat-note">接口盒子免费限制：每分钟 10 次。手机端「新建」页的📖查词和「查词」页都会计入。</div>
+    </div>
+  `;
 }
 
 /* ══════════════════════════════════════════════
@@ -1988,6 +2180,7 @@ async function fetchWordInfoFromApiHz(word) {
   const id = S.apiHz.id;
   const key = S.apiHz.key;
   if (!id || !key) return null;
+  Stats.add('apihz', 1);
   const url = `https://cn.apihz.cn/api/zici/danci.php?id=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}&word=${encodeURIComponent(word)}`;
   let resp;
   if (typeof window.__LEXIVAULT_DAV_PROXY__ === 'function') {
@@ -2152,6 +2345,7 @@ function openSmartImagePicker(word, onPicked) {
         }
       } else if (provider === 'pixabay') {
         if (!key) throw new Error('未配置 Pixabay API Key，请到设置里填');
+        Stats.add('pixabay', 1);
         const resp = await fetch(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(word)}&image_type=photo&per_page=3&page=${_pixabayPage}&safesearch=true`);
         const data = await resp.json();
         if (data.hits && data.hits.length) {
@@ -2409,19 +2603,24 @@ const WebDAV = (() => {
 
   async function getJSON(path) {
     const resp = await request('GET', path);
-    if (resp.status === 404) return null;
+    if (resp.status === 404) return { data: null, size: 0 };
     if (resp.status === 401) throw new Error('账号或应用密码错误');
     if (!resp.ok) throw new Error(`GET 失败：HTTP ${resp.status}`);
     const text = await resp.text();
-    try { return JSON.parse(text); }
+    const size = new Blob([text]).size;
+    let data;
+    try { data = JSON.parse(text); }
     catch (e) { throw new Error('云端文件格式错误'); }
+    return { data, size };
   }
 
   async function putJSON(path, obj) {
-    const resp = await request('PUT', path, JSON.stringify(obj), 'application/json');
+    const body = JSON.stringify(obj);
+    const size = new Blob([body]).size;
+    const resp = await request('PUT', path, body, 'application/json');
     if (resp.status === 401) throw new Error('账号或应用密码错误');
     if (!resp.ok) throw new Error(`PUT 失败：HTTP ${resp.status}`);
-    return true;
+    return { size };
   }
 
   async function getBlob(path) {
@@ -2715,6 +2914,7 @@ async function pullMissingImages(remoteImageIds, onProgress) {
       await DB.put('images', rec);
       S.images.push(rec);
       S.urls.set(id, URL.createObjectURL(blob));
+      Stats.add('cloudDown', blob.size);
       ok++;
     } catch (e) {
       console.warn('下载图片失败', id, e);
@@ -2741,7 +2941,9 @@ async function syncNow() {
     setSyncProgress('1/4 下载 data.json');
     let remote = null;
     try {
-      remote = await WebDAV.getJSON(DATA_PATH);
+      const r = await WebDAV.getJSON(DATA_PATH);
+      remote = r.data;
+      if (r.size > 0) Stats.add('cloudDown', r.size);
     } catch (e) {
       // 首次同步，远端可能还没有文件
       if (!/404/.test(e.message)) throw e;
@@ -2825,6 +3027,7 @@ async function syncNow() {
         setSyncProgress(`4/4 上传图片 ${i + 1}/${toUploadImgs.length}`);
         try {
           await WebDAV.putBlob(`${IMG_DIR}/${im.id}.jpg`, im.blob);
+          Stats.add('cloudUp', im.blob.size);
         } catch (e) {
           console.warn('上传图片失败', im.id, e);
         }
@@ -2846,7 +3049,8 @@ async function syncNow() {
         createdAt: im.createdAt || nowMs(),
       })),
     };
-    await WebDAV.putJSON(DATA_PATH, dataPack);
+    const putResult = await WebDAV.putJSON(DATA_PATH, dataPack);
+    Stats.add('cloudUp', putResult.size);
 
     // ─── 完成 ───
     S.settings.lastSyncAt = nowMs();
@@ -3164,6 +3368,10 @@ function bindEvents() {
     handle.addEventListener('pointerup', onUp);
     handle.addEventListener('pointercancel', onUp);
   });
+
+  // ── 数据统计 ──
+  $('#btnStats').addEventListener('click', openStats);
+  $('#statsClose').addEventListener('click', () => { $('#statsModal').hidden = true; });
 
   // ── 设置 ──
   $('#btnSettings').addEventListener('click', openSettings);

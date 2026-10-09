@@ -1245,58 +1245,50 @@ const DB = (() => {
    ══════════════════════════════════════════════ */
 const Speech = (() => {
   const synth = window.speechSynthesis;
-
-  // ★ 固定参数：Emma 女声 / 亲切温柔 / 正常语速 / 标准音调
-  const TTS_OPTS = {
-    voice: 'en-US-EmmaMultilingualNeural',
-    style: 'gentle',
-    speed: '1',
-    pitch: '0',
-  };
-
-  // 系统 TTS 仅作回退
   let bestVoice = null;
-  function pickSystemVoice() {
+  let lastText = '', lastAt = 0;
+
+  function pickVoice() {
     const voices = synth ? synth.getVoices() : [];
     const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-    if (!en.length) return;
-    bestVoice = en.find(v => /natural|neural/i.test(v.name)) || en[0];
+    if (!en.length) return false;
+    // 优先级：Google > 美式 > 英式 > 其他英文
+    const google = en.find(v => /google/i.test(v.name));
+    const us = en.find(v => /^en[-_]US/i.test(v.lang));
+    const gb = en.find(v => /^en[-_]GB/i.test(v.lang));
+    bestVoice = google || us || gb || en[0];
+    return true;
   }
-  if (synth) { pickSystemVoice(); synth.onvoiceschanged = pickSystemVoice; }
 
-  let lastText = '', lastAt = 0;
-  let currentAudio = null;
+  if (synth) {
+    pickVoice();
+    synth.onvoiceschanged = pickVoice;
+    // Android 上首次 getVoices() 可能返回空，稍后自动重试
+    let tries = 0;
+    const retry = setInterval(() => {
+      tries++;
+      if (pickVoice() || tries >= 6) clearInterval(retry);
+    }, 300);
+  }
 
-  async function speak(text, { force = false } = {}) {
-    if (!text) return;
+  function speak(text, { force = false } = {}) {
+    if (!synth || !text) return;
     const now = Date.now();
     if (!force && text === lastText && now - lastAt < 300) return;
     lastText = text; lastAt = now;
 
-    // ★ 优先用 VoiceCafe TTS
-    if (typeof window.__LEXIVAULT_TTS__ === 'function') {
-      try {
-        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-        const blobUrl = await window.__LEXIVAULT_TTS__(text, TTS_OPTS);
-        const audio = new Audio(blobUrl);
-        currentAudio = audio;
-        audio.play();
-        audio.onended = () => { URL.revokeObjectURL(blobUrl); currentAudio = null; };
-        return;
-      } catch (e) {
-        console.warn('[LexiVault] VoiceCafe 失败，回退系统语音', e);
-      }
-    }
+    if (!bestVoice) pickVoice();
 
-    // ★ 回退：系统语音
-    if (!synth) return;
     try {
       synth.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'en-US';
       u.rate = 0.9;
       if (bestVoice) u.voice = bestVoice;
-      setTimeout(() => { try { synth.resume(); synth.speak(u); } catch (e) {} }, 10);
+      // 部分浏览器首次 speak 需要 resume，避免卡住
+      setTimeout(() => {
+        try { synth.resume(); synth.speak(u); } catch (e) {}
+      }, 10);
     } catch (e) {}
   }
 

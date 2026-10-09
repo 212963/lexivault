@@ -955,6 +955,25 @@ label:first-of-type{margin-top:0}
       </div>
     </div>
 
+    <!-- 发音语音 -->
+    <div class="set-section">
+      <div class="set-title">🔊 发音语音</div>
+      <div class="sync-hint">
+        从手机系统里挑一个英文语音。<b>装了 Google 语音包的话，音质比小米自带的好很多。</b>没装的话，去手机「设置 → 更多设置 → 语言和输入法 → 文字转语音输出」里换一个引擎。
+      </div>
+      <div class="sync-field">
+        <label>选择语音</label>
+        <select id="voiceSelect" style="width:100%;padding:12px 14px;font-size:14px;border-radius:11px;border:1px solid var(--border);background:rgba(var(--text-rgb),.05);color:var(--text);font-family:inherit;outline:none;-webkit-appearance:none">
+          <option>加载中…</option>
+        </select>
+      </div>
+      <div class="sync-actions" style="margin-top:10px">
+        <button class="btn" id="voiceTest">🔊 试听</button>
+        <button class="btn primary" id="voiceSave">💾 保存</button>
+      </div>
+      <div class="sync-status" id="voiceStatus">未配置</div>
+    </div>
+
     <!-- 数据管理 -->
     <div class="set-section">
       <div class="set-title">💾 数据管理</div>
@@ -1245,32 +1264,59 @@ const DB = (() => {
    ══════════════════════════════════════════════ */
 const Speech = (() => {
   const synth = window.speechSynthesis;
+  const VOICE_KEY = 'lexivault.mobile.voice.uri';
   let bestVoice = null;
-function pickVoice() {
-  const voices = synth ? synth.getVoices() : [];
-  if (!voices.length) return;
-  const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-  if (!en.length) return;
-  // 按音质优先级排序：神经网络语音 > Google > 微软 > 小米 > 其他
-  const score = (v) => {
-    const n = (v.name || '').toLowerCase();
-    if (/natural|neural|online/i.test(n)) return 100;  // 微软神经网络（最自然）
-    if (/google/i.test(n)) return 90;                   // Google 语音
-    if (/microsoft/i.test(n)) return 80;                // 微软系统语音
-    if (/xiaomi|mi\b/i.test(n)) return 70;              // 小米语音
-    if (/enhanced|premium/i.test(n)) return 60;         // 增强版
-    if (v.localService) return 40;                      // 本地语音
-    return 10;                                          // 其他
-  };
-  en.sort((a, b) => score(b) - score(a));
-  bestVoice = en[0];
-  // 优先选美式英语，其次英式，最后其他
-  const us = en.find(v => v.lang === 'en-US' || v.lang === 'en_US');
-  const gb = en.find(v => v.lang === 'en-GB' || v.lang === 'en_GB');
-  if (us) bestVoice = us;
-  else if (gb) bestVoice = gb;
-}
-  if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
+
+  function getSavedVoiceURI() {
+    try { return localStorage.getItem(VOICE_KEY) || ''; } catch (e) { return ''; }
+  }
+  function saveVoiceURI(uri) {
+    try {
+      if (uri) localStorage.setItem(VOICE_KEY, uri);
+      else localStorage.removeItem(VOICE_KEY);
+    } catch (e) {}
+  }
+
+  function listVoices() {
+    const voices = synth ? synth.getVoices() : [];
+    const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+    const score = (v) => {
+      const n = (v.name || '').toLowerCase();
+      if (/natural|neural|online/i.test(n)) return 100;
+      if (/google/i.test(n)) return 90;
+      if (/microsoft/i.test(n)) return 80;
+      if (/xiaomi|mi\b/i.test(n)) return 70;
+      if (/enhanced|premium/i.test(n)) return 60;
+      if (v.localService) return 40;
+      return 10;
+    };
+    en.sort((a, b) => {
+      const sa = score(a), sb = score(b);
+      if (sa !== sb) return sb - sa;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    return en;
+  }
+
+  function pickVoice() {
+    const en = listVoices();
+    if (!en.length) { bestVoice = null; return; }
+
+    const saved = getSavedVoiceURI();
+    if (saved) {
+      const match = en.find(v => v.voiceURI === saved || v.name === saved);
+      if (match) { bestVoice = match; return; }
+    }
+
+    const us = en.find(v => v.lang === 'en-US' || v.lang === 'en_US');
+    const gb = en.find(v => v.lang === 'en-GB' || v.lang === 'en_GB');
+    bestVoice = us || gb || en[0];
+  }
+
+  if (synth) {
+    pickVoice();
+    synth.onvoiceschanged = pickVoice;
+  }
 
   let lastText = '', lastAt = 0;
   function speak(text, { force = false } = {}) {
@@ -1284,7 +1330,6 @@ function pickVoice() {
       u.lang = 'en-US';
       u.rate = 0.9;
       if (bestVoice) u.voice = bestVoice;
-      // ★ 手机上必须由用户交互触发，这里是延迟执行，但整个流程都是用户点击引起的
       setTimeout(() => { try { synth.resume(); synth.speak(u); } catch (e) {} }, 10);
     } catch (e) {}
   }
@@ -1297,7 +1342,11 @@ function pickVoice() {
       synth.speak(u);
     } catch (e) {}
   }
-  return { speak, warmup };
+  function setVoice(uri) {
+    saveVoiceURI(uri);
+    pickVoice();
+  }
+  return { speak, warmup, listVoices, setVoice, getCurrent: () => bestVoice };
 })();
 
 /* ══════════════════════════════════════════════
@@ -1549,10 +1598,48 @@ function openSettings() {
   }
   setSyncProgress('');
 
+  if (typeof syncVoiceUI === 'function') syncVoiceUI();
+
   $('#settingsModal').hidden = false;
 }
 function closeSettings() {
   $('#settingsModal').hidden = true;
+}
+
+/* ── 语音设置面板 ── */
+function syncVoiceUI() {
+  const sel = $('#voiceSelect');
+  const statusEl = $('#voiceStatus');
+  if (!sel) return;
+
+  const populate = () => {
+    const voices = Speech.listVoices();
+    if (!voices.length) {
+      sel.innerHTML = '<option value="">（手机里没找到英文语音）</option>';
+      if (statusEl) {
+        statusEl.className = 'sync-status warn';
+        statusEl.textContent = '⚠️ 手机里没有英文语音包，去系统设置里装一个';
+      }
+      return;
+    }
+    const current = Speech.getCurrent();
+    const currentURI = current ? current.voiceURI : '';
+    sel.innerHTML = voices.map(v => {
+      const label = `${v.name} (${v.lang})${v.localService ? '' : ' · 在线'}`;
+      return `<option value="${esc(v.voiceURI)}" ${v.voiceURI === currentURI ? 'selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+    if (statusEl) {
+      statusEl.className = 'sync-status ok';
+      statusEl.textContent = `✅ 找到 ${voices.length} 个英文语音`;
+    }
+  };
+
+  populate();
+  // Android 首次 getVoices() 可能返回空，延迟重试两次
+  if (window.speechSynthesis && !window.speechSynthesis.getVoices().length) {
+    setTimeout(populate, 500);
+    setTimeout(populate, 1500);
+  }
 }
 
 /* ── 数据统计面板 ── */
@@ -3424,6 +3511,34 @@ function bindEvents() {
   $('#settingsModal').addEventListener('click', e => {
     if (e.target.id === 'settingsModal') closeSettings();
   });
+
+  // ── 语音设置 ──
+  const _vSel = $('#voiceSelect');
+  if (_vSel) {
+    _vSel.onchange = (e) => {
+      Speech.setVoice(e.target.value);
+      toast('已切换语音', 'ok');
+    };
+  }
+  const _vSave = $('#voiceSave');
+  if (_vSave) {
+    _vSave.onclick = () => {
+      const uri = $('#voiceSelect').value;
+      if (!uri) return toast('请先选一个语音', 'warn');
+      Speech.setVoice(uri);
+      toast('已保存', 'ok');
+      syncVoiceUI();
+    };
+  }
+  const _vTest = $('#voiceTest');
+  if (_vTest) {
+    _vTest.onclick = () => {
+      const uri = $('#voiceSelect').value;
+      if (!uri) return toast('请先选一个语音', 'warn');
+      Speech.setVoice(uri);
+      Speech.speak('Hello, this is LexiVault. Serendipity.', { force: true });
+    };
+  }
 
   $('#setExportLight').addEventListener('click', () => exportData(false));
   $('#setExportFull').addEventListener('click', () => exportData(true));

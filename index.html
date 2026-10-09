@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0a12">
+<meta name="color-scheme" content="dark light">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
@@ -1387,8 +1388,12 @@ function applySettings() {
   r.setProperty('--glow-b', `rgba(${accent2RGB},${t.glowBAlpha})`);
   r.setProperty('--glow-c', `rgba(${accentRGB},${t.glowCAlpha})`);
   document.body.style.background = t.bg;
+  // ★ 告诉浏览器本页自主管理颜色，禁止强制反色
+  document.documentElement.style.colorScheme = (theme === 'light') ? 'light' : 'dark';
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = t.bg;
+  const csMeta = document.querySelector('meta[name="color-scheme"]');
+  if (csMeta) csMeta.content = (theme === 'light') ? 'light dark' : 'dark light';
 }
 
 function refreshThemeButtons() {

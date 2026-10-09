@@ -1246,17 +1246,30 @@ const DB = (() => {
 const Speech = (() => {
   const synth = window.speechSynthesis;
   let bestVoice = null;
-  function pickVoice() {
-    const voices = synth ? synth.getVoices() : [];
-    if (!voices.length) return;
-    const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-    if (!en.length) return;
-    bestVoice =
-      en.find(v => /natural|premium|enhanced|neural/i.test(v.name)) ||
-      en.find(v => /google/i.test(v.name)) ||
-      en.find(v => v.localService) ||
-      en[0];
-  }
+function pickVoice() {
+  const voices = synth ? synth.getVoices() : [];
+  if (!voices.length) return;
+  const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+  if (!en.length) return;
+  // 按音质优先级排序：神经网络语音 > Google > 微软 > 小米 > 其他
+  const score = (v) => {
+    const n = (v.name || '').toLowerCase();
+    if (/natural|neural|online/i.test(n)) return 100;  // 微软神经网络（最自然）
+    if (/google/i.test(n)) return 90;                   // Google 语音
+    if (/microsoft/i.test(n)) return 80;                // 微软系统语音
+    if (/xiaomi|mi\b/i.test(n)) return 70;              // 小米语音
+    if (/enhanced|premium/i.test(n)) return 60;         // 增强版
+    if (v.localService) return 40;                      // 本地语音
+    return 10;                                          // 其他
+  };
+  en.sort((a, b) => score(b) - score(a));
+  bestVoice = en[0];
+  // 优先选美式英语，其次英式，最后其他
+  const us = en.find(v => v.lang === 'en-US' || v.lang === 'en_US');
+  const gb = en.find(v => v.lang === 'en-GB' || v.lang === 'en_GB');
+  if (us) bestVoice = us;
+  else if (gb) bestVoice = gb;
+}
   if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
 
   let lastText = '', lastAt = 0;

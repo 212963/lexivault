@@ -156,9 +156,14 @@ body::before{
 @keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
 .modal-box h3{font-size:17px;margin-bottom:14px;font-weight:700}
 .modal-box .close-bar{
-  width:36px;height:4px;border-radius:99px;background:rgba(var(--text-rgb),.2);
+  width:36px;height:4px;border-radius:99px;background:rgba(var(--text-rgb),.28);
   margin:-10px auto 16px;
+  position:relative;cursor:grab;touch-action:none;
 }
+.modal-box .close-bar::before{
+  content:'';position:absolute;inset:-14px -30px;
+}
+.modal-box .close-bar:active{cursor:grabbing;background:rgba(var(--text-rgb),.45)}
 .about-row{
   display:flex;justify-content:space-between;padding:10px 0;
   border-bottom:1px solid var(--border);font-size:14px;
@@ -461,6 +466,19 @@ label:first-of-type{margin-top:0}
 
 /* ═══════════ 设置页 ═══════════ */
 .set-section{margin-bottom:22px}
+.theme-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.theme-btn{
+  padding:14px;border-radius:12px;border:1px solid var(--border);
+  background:rgba(var(--text-rgb),.04);color:var(--muted);
+  font-family:inherit;font-size:14.5px;font-weight:600;cursor:pointer;
+  transition:all .2s var(--ease);min-height:50px;
+}
+.theme-btn:active{transform:scale(.97)}
+.theme-btn.on{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;border-color:transparent;
+  box-shadow:0 6px 18px -8px rgba(var(--accent-rgb),1);
+}
 .set-section:last-child{margin-bottom:0}
 .set-title{
   font-size:11.5px;font-weight:800;letter-spacing:1.5px;
@@ -855,6 +873,15 @@ label:first-of-type{margin-top:0}
       <div class="about-row"><span class="k">上次同步</span><span class="v" id="aboutSync">从未</span></div>
     </div>
 
+    <!-- 主题 -->
+    <div class="set-section">
+      <div class="set-title">🎨 主题</div>
+      <div class="theme-switch">
+        <button class="theme-btn" data-theme="dark">🌙 暗色</button>
+        <button class="theme-btn" data-theme="light">☀️ 明亮</button>
+      </div>
+    </div>
+
     <!-- 数据管理 -->
     <div class="set-section">
       <div class="set-title">💾 数据管理</div>
@@ -1036,6 +1063,13 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
 const nowMs = () => Date.now();
 const DAY = 864e5;
 
+function hexToRgb(hex) {
+  hex = String(hex).replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  const n = parseInt(hex, 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
+
 function timeAgo(ts) {
   const d = nowMs() - ts;
   if (d < 60e3) return '刚刚';
@@ -1182,15 +1216,53 @@ const Speech = (() => {
 /* ══════════════════════════════════════════════
    §3  设置（手机版精简：只保留必要项）
    ══════════════════════════════════════════════ */
+const THEMES = {
+  dark:  { bg: '#0a0a12', surface: '#14141f', text: '#eaeaf5', muted: '#8b8ba7' },
+  light: { bg: '#f4f4fa', surface: '#ffffff', text: '#16161f', muted: '#6d6d88' },
+};
+
 const DEFAULT_SETTINGS = {
   accent: '#7c5cff', accent2: '#22d3ee',
   bg: '#0a0a12', surface: '#14141f', text: '#eaeaf5', muted: '#8b8ba7',
   radius: 16, imgRadius: 14, blur: 16, fontSize: 16,
   srsInit: 0.8, srsGain: 2.2, srsDecay: 0.35,
+  theme: 'dark',
   // 同步相关（阶段 7 使用）
   webdav: { url: '', user: '', pass: '' },
   lastSyncAt: null,
 };
+
+function applySettings() {
+  const theme = S.settings.theme || 'dark';
+  const t = THEMES[theme] || THEMES.dark;
+  const r = document.documentElement.style;
+  const accent = S.settings.accent || '#7c5cff';
+  const accent2 = S.settings.accent2 || '#22d3ee';
+  r.setProperty('--accent', accent);
+  r.setProperty('--accent-rgb', hexToRgb(accent));
+  r.setProperty('--accent2', accent2);
+  r.setProperty('--accent2-rgb', hexToRgb(accent2));
+  r.setProperty('--bg', t.bg);
+  r.setProperty('--surface', t.surface);
+  r.setProperty('--surface-rgb', hexToRgb(t.surface));
+  r.setProperty('--text', t.text);
+  r.setProperty('--text-rgb', hexToRgb(t.text));
+  r.setProperty('--muted', t.muted);
+  r.setProperty('--border', theme === 'light' ? 'rgba(22,22,31,.10)' : 'rgba(234,234,245,.09)');
+  r.setProperty('--shadow', theme === 'light'
+    ? '0 14px 34px -14px rgba(0,0,0,.14)'
+    : '0 14px 34px -14px rgba(0,0,0,.7)');
+  document.body.style.background = t.bg;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = t.bg;
+}
+
+function refreshThemeButtons() {
+  const cur = S.settings.theme || 'dark';
+  document.querySelectorAll('.theme-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.theme === cur);
+  });
+}
 const SETTINGS_KEY = 'lexivault.mobile.settings';
 
 function loadSettings() {
@@ -2101,12 +2173,12 @@ function openSmartImagePicker(word, onPicked) {
     let urls = [];
     try {
       if (provider === 'loremflickr') {
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 3; i++) {
           urls.push(`https://loremflickr.com/400/400/${encodeURIComponent(word)}?random=${Date.now() + i}`);
         }
       } else if (provider === 'pixabay') {
         if (!key) throw new Error('未配置 Pixabay API Key，请到设置里填');
-        const resp = await fetch(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(word)}&image_type=photo&per_page=6&page=${_pixabayPage}&safesearch=true`);
+        const resp = await fetch(`https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(word)}&image_type=photo&per_page=3&page=${_pixabayPage}&safesearch=true`);
         const data = await resp.json();
         if (data.hits && data.hits.length) {
           urls = data.hits.map(h => h.webformatURL);
@@ -3070,6 +3142,71 @@ function bindEvents() {
     _lkIn.focus();
   };
 
+  // ── 主题切换 ──
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const theme = btn.dataset.theme;
+      S.settings.theme = theme;
+      saveSettings();
+      applySettings();
+      refreshThemeButtons();
+      toast(theme === 'light' ? '已切换到明亮主题' : '已切换到暗色主题', 'ok');
+    });
+  });
+
+  // ── 弹窗：点击背景关闭 ──
+  document.addEventListener('click', e => {
+    if (e.target.classList && e.target.classList.contains('modal') && !e.target.hidden) {
+      e.target.hidden = true;
+    }
+  });
+
+  // ── 弹窗：下拉 close-bar 关闭 ──
+  document.querySelectorAll('.modal').forEach(modal => {
+    const box = modal.querySelector('.modal-box');
+    const handle = modal.querySelector('.close-bar');
+    if (!box || !handle) return;
+    let startY = 0, currentY = 0, dragging = false;
+    const reset = () => {
+      box.style.transition = '';
+      box.style.transform = '';
+      modal.style.background = '';
+      dragging = false;
+    };
+    handle.addEventListener('pointerdown', e => {
+      dragging = true;
+      startY = e.clientY;
+      currentY = startY;
+      box.style.transition = 'none';
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    handle.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      currentY = e.clientY;
+      const dy = currentY - startY;
+      if (dy > 0) {
+        box.style.transform = `translateY(${dy}px)`;
+        modal.style.background = `rgba(0,0,0,${Math.max(0.08, 0.6 - dy / 800)})`;
+      }
+    });
+    const onUp = () => {
+      if (!dragging) return;
+      const dy = currentY - startY;
+      if (dy > 80) {
+        box.style.transition = 'transform .2s ease-out';
+        box.style.transform = 'translateY(100%)';
+        setTimeout(() => { modal.hidden = true; reset(); }, 200);
+      } else {
+        box.style.transition = 'transform .2s ease-out';
+        box.style.transform = '';
+        modal.style.background = '';
+        setTimeout(reset, 200);
+      }
+    };
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  });
+
   // ── 设置 ──
   $('#btnSettings').addEventListener('click', openSettings);
   $('#settingsClose').addEventListener('click', closeSettings);
@@ -3141,6 +3278,8 @@ async function boot() {
     toast('本地数据加载失败（可能是隐私模式）', 'err');
   }
 
+  applySettings();
+  refreshThemeButtons();
   renderCreate();
   renderLibrary();
   renderTestSetup();

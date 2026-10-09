@@ -1834,14 +1834,14 @@ async function saveCreateWord() {
 const T = {
   scope: 'all',
   count: 10,
-  wordQueue: [],   // 抽中的单词列表
-  wordIdx: 0,      // 当前在第几个单词
-  stageIdx: 0,     // 当前单词的第几个环节
-  stages: [],      // 启用的环节列表（如 ['choice','spell','reverse']）
-  correct: 0,
-  total: 0,        // 总题数 = 单词数 × 环节数
+  wordPool: [],         // 第一轮抽中的单词（用于结果页）
+  tasks: [],            // 当前轮任务队列 [{word, stage}]
+  taskIdx: 0,
+  round: 1,             // 1=正常三环节；2+=错题重测
+  roundWrong: [],       // 本轮错词
+  firstRoundTotal: 0,
+  firstRoundCorrect: 0,
   answered: false,
-  wrong: [],
 };
 
 let _learnEnterHandler = null;
@@ -1911,7 +1911,11 @@ function renderTestSetup() {
 
   let html = `当前范围 <b>${scopeName}</b> 共 <b>${pool.length}</b> 个可测单词`;
   if (stageCount) {
-    html += `<br>测试环节：<b>${stageNames.join(' → ')}</b>（每个单词过 ${stageCount} 关）`;
+    const n = T.count === 0 ? pool.length : Math.min(T.count, pool.length);
+    const totalQ = n * stageCount;
+    html += `<br>流程：<b>${stageNames.join(' → ')}</b>`;
+    html += `<br>预计 <b>${totalQ}</b> 题（${n} 词 × ${stageCount} 环节）`;
+    html += `<br><span style="font-size:12px;color:var(--muted)">答错的词最后用「看中文拼英文」重测，直到全对</span>`;
   } else {
     html += `<br><span style="color:#ffb43c">⚠ 还没启用任何测试环节，去设置里勾选</span>`;
   }
@@ -1945,14 +1949,23 @@ function startTest() {
   if (!stages.length) return toast('请到设置里至少启用一个测试环节', 'warn');
 
   const n = T.count === 0 ? pool.length : Math.min(T.count, pool.length);
-  T.wordQueue = shuffle(pool).slice(0, n);
-  T.stages = stages;
-  T.wordIdx = 0;
-  T.stageIdx = 0;
-  T.correct = 0;
-  T.total = T.wordQueue.length * stages.length;
+  T.wordPool = shuffle(pool).slice(0, n);
+
+  // 构建第一轮任务队列：逐环节，每个环节过一遍所有单词
+  const tasks = [];
+  for (const stage of stages) {
+    for (const word of T.wordPool) {
+      tasks.push({ word, stage });
+    }
+  }
+
+  T.tasks = tasks;
+  T.taskIdx = 0;
+  T.round = 1;
+  T.roundWrong = [];
+  T.firstRoundTotal = tasks.length;
+  T.firstRoundCorrect = 0;
   T.answered = false;
-  T.wrong = [];
 
   $('#testSetup').hidden = true;
   $('#testRun').hidden = false;
@@ -1975,21 +1988,21 @@ function bindSpellInput(word) {
   };
 }
 function renderQuestion() {
-  // 跳过已完成的单词
-  while (T.wordIdx < T.wordQueue.length && T.stageIdx >= T.stages.length) {
-    T.wordIdx++;
-    T.stageIdx = 0;
-  }
-  if (T.wordIdx >= T.wordQueue.length) return showResult();
+  if (T.taskIdx >= T.tasks.length) return endRound();
 
-  const w = T.wordQueue[T.wordIdx];
-  const stage = T.stages[T.stageIdx];
+  const task = T.tasks[T.taskIdx];
+  const w = task.word;
+  const stage = task.stage;
   T.answered = false;
 
-  const curNum = T.wordIdx * T.stages.length + T.stageIdx + 1;
-  const totalNum = T.total;
-  const stageName = { choice: '看词选图', spell: '看图拼词', reverse: '看中拼英文' }[stage];
-  const progressText = `第 ${curNum} / ${totalNum} 题 · ${stageName}`;
+  let progressText;
+  if (T.round === 1) {
+    const stageName = { choice: '看词选图', spell: '看图拼词', reverse: '看中拼英文' }[stage];
+    progressText = `第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · ${stageName}`;
+  } else {
+    progressText = `错题重测 · 第 ${T.taskIdx + 1} / ${T.tasks.length} 题`;
+  }
+
   const url = imgURL(w.imageIds[0]);
 
   if (stage === 'choice') {
@@ -2063,7 +2076,7 @@ function renderQuestion() {
 }
 function submitSpell() {
   if (T.answered) return;
-  const w = T.wordQueue[T.wordIdx];
+  const w = T.tasks[T.taskIdx].word;
   const inp = $('#spellInput');
   const val = inp.value.trim().toLowerCase();
   if (!val) return;
@@ -2074,7 +2087,10 @@ function submitSpell() {
 }
 function finishQuestion(ok, word) {
   T.answered = true;
-  if (ok) T.correct++; else T.wrong.push(word);
+  if (T.round === 1) {
+    if (ok) T.firstRoundCorrect++;
+  }
+  if (!ok) T.roundWrong.push(word);
   gradeWord(word, ok);
   const fb = $('#quizFb');
   if (fb) {
@@ -2088,8 +2104,14 @@ function showLearnCard(word, ok) {
   const w = word;
   const imgUrl = (w.imageIds && w.imageIds.length) ? imgURL(w.imageIds[0]) : null;
   const meanings = getMeanings(w);
-  const curNum = T.wordIdx * T.stages.length + T.stageIdx + 1;
-  const totalNum = T.total;
+
+  let progressText;
+  if (T.round === 1) {
+    progressText = `第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · 学习一下`;
+  } else {
+    progressText = `错题重测 · 第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · 学习一下`;
+  }
+
   const meaningHtml = meanings.length
     ? meanings.map(m => `
         <div class="lc-mean-row">
@@ -2097,8 +2119,9 @@ function showLearnCard(word, ok) {
           <span class="lc-text">${esc(m.text)}</span>
         </div>`).join('')
     : '<div class="lc-mean-row"><span class="lc-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
+
   $('#testRun').innerHTML = `
-    <div class="quiz-progress">第 ${curNum} / ${totalNum} 题 · 学习一下</div>
+    <div class="quiz-progress">${progressText}</div>
     <div class="learn-card ${ok ? 'ok' : 'bad'}">
       <div class="lc-badge">${ok ? '🎉 答对了' : '📖 记一下'}</div>
       ${imgUrl ? `<img class="lc-img" src="${imgUrl}" alt="">` : ''}
@@ -2107,6 +2130,7 @@ function showLearnCard(word, ok) {
       <div class="lc-meanings">${meaningHtml}</div>
       <button class="btn primary block lg" id="lcNextBtn" style="margin-top:14px">下一题</button>
     </div>`;
+
   if (_learnEnterHandler) {
     document.removeEventListener('keydown', _learnEnterHandler);
     _learnEnterHandler = null;
@@ -2119,7 +2143,7 @@ function showLearnCard(word, ok) {
       document.removeEventListener('keydown', _learnEnterHandler);
       _learnEnterHandler = null;
     }
-    T.stageIdx++;
+    T.taskIdx++;
     renderQuestion();
   };
   _learnEnterHandler = (e) => {
@@ -2129,12 +2153,76 @@ function showLearnCard(word, ok) {
   $('#lcNextBtn').onclick = goNext;
   setTimeout(() => { $('#lcNextBtn').focus(); }, 60);
 }
+/* ── 本轮结束：检查是否还有错词 ── */
+function dedupWords(words) {
+  const seen = new Set();
+  const out = [];
+  for (const w of words) {
+    if (seen.has(w.id)) continue;
+    seen.add(w.id);
+    out.push(w);
+  }
+  return out;
+}
+
+function endRound() {
+  if (T.roundWrong.length === 0) {
+    // 无错词 → 全部完成
+    return showResult();
+  }
+  // 有错词 → 构建下一轮，全部用 reverse 题型
+  const wrongWords = dedupWords(T.roundWrong);
+  T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
+  T.taskIdx = 0;
+  T.round++;
+  T.roundWrong = [];
+  showRoundBreak(wrongWords.length);
+}
+
+function showRoundBreak(count) {
+  const prevRound = T.round - 1;
+  $('#testRun').innerHTML = `
+    <div class="quiz-progress">第 ${prevRound} 轮完成</div>
+    <div class="learn-card ok">
+      <div class="lc-badge">📖 错题重测</div>
+      <div style="text-align:center;padding:16px 0 6px">
+        <div style="font-size:48px;font-weight:800;line-height:1;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent">${count}</div>
+        <div style="color:var(--muted);font-size:14px;margin-top:10px">个错词要重测</div>
+      </div>
+      <div style="font-size:13.5px;color:var(--muted);line-height:1.7;text-align:center;padding:0 8px">
+        用「看中文拼英文」重测<br>直到全部答对
+      </div>
+      <button class="btn primary block lg" id="roundStartBtn" style="margin-top:14px">开始重测</button>
+    </div>`;
+
+  if (_learnEnterHandler) {
+    document.removeEventListener('keydown', _learnEnterHandler);
+    _learnEnterHandler = null;
+  }
+  let consumed = false;
+  const go = () => {
+    if (consumed) return;
+    consumed = true;
+    if (_learnEnterHandler) {
+      document.removeEventListener('keydown', _learnEnterHandler);
+      _learnEnterHandler = null;
+    }
+    renderQuestion();
+  };
+  _learnEnterHandler = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); go(); }
+  };
+  document.addEventListener('keydown', _learnEnterHandler);
+  $('#roundStartBtn').onclick = go;
+  setTimeout(() => { $('#roundStartBtn').focus(); }, 60);
+}
+
 function showResult() {
   $('#testRun').hidden = true;
   $('#testResult').hidden = false;
-  const total = T.total;
-  const acc = total ? Math.round(T.correct / total * 100) : 0;
-  const words = T.wordQueue;
+  const total = T.firstRoundTotal;
+  const acc = total ? Math.round(T.firstRoundCorrect / total * 100) : 0;
+  const words = T.wordPool;
   const items = words.map(w => {
     const r = retentionOf(w);
     const pct = r === null ? 0 : Math.round(r * 100);
@@ -2149,7 +2237,8 @@ function showResult() {
     <div class="card">
       <div class="result-stat">
         <div class="pct">${acc}%</div>
-        <div class="sub">本次正确 ${T.correct} / ${total}</div>
+        <div class="sub">首轮正确 ${T.firstRoundCorrect} / ${total} 题</div>
+        <div class="sub" style="margin-top:4px;font-size:12.5px">共 ${words.length} 个单词 · 全部通过错题重测 ✓</div>
       </div>
     </div>
     <div class="card">
@@ -2158,30 +2247,9 @@ function showResult() {
       <div class="ret-list">${items}</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
-      ${T.wrong && T.wrong.length ? `<button class="btn primary block lg" id="btnRetryWrong">重测错题（${T.wrong.length} 题）</button>` : ''}
       <button class="btn block lg" id="btnRetryTest">再来一轮</button>
       <button class="btn block lg" id="btnBackTestSetup">返回设置</button>
     </div>`;
-  const _bRW = $('#btnRetryWrong');
-  if (_bRW) _bRW.onclick = () => {
-    // 去重（同一个词可能错了多次）
-    const seen = new Set();
-    const wrongWords = [];
-    for (const w of T.wrong) {
-      if (!seen.has(w.id)) { seen.add(w.id); wrongWords.push(w); }
-    }
-    if (!wrongWords.length) return;
-    T.wordQueue = wrongWords;
-    T.wordIdx = 0;
-    T.stageIdx = 0;
-    T.correct = 0;
-    T.total = wrongWords.length * T.stages.length;
-    T.answered = false;
-    T.wrong = [];
-    $('#testResult').hidden = true;
-    $('#testRun').hidden = false;
-    renderQuestion();
-  };
   $('#btnRetryTest').onclick = () => {
     $('#testResult').hidden = true;
     startTest();

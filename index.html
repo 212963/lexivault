@@ -940,9 +940,31 @@ label:first-of-type{margin-top:0}
       <div class="sync-progress" id="davProgress"></div>
     </div>
 
+    <!-- 接口盒子词典 -->
+    <div class="set-section">
+      <div class="set-title">📚 接口盒子词典</div>
+      <div class="sync-hint">
+        去 <b>apihz.cn</b> 注册后，在用户中心能看到自己的 ID 和 KEY。填到下面，
+        新建单词页的「📖 查词」会自动填音标和释义。
+      </div>
+      <div class="sync-field">
+        <label>ID</label>
+        <input id="apiHzId" placeholder="在用户中心复制" autocomplete="off" spellcheck="false" inputmode="numeric">
+      </div>
+      <div class="sync-field">
+        <label>KEY</label>
+        <input id="apiHzKey" type="password" placeholder="在用户中心复制" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="sync-actions" style="margin-top:10px">
+        <button class="btn" id="apiHzTest">🔍 测试</button>
+        <button class="btn primary" id="apiHzSave">💾 保存</button>
+      </div>
+      <div class="sync-status" id="apiHzStatus">未配置</div>
+    </div>
+
     <!-- 百度翻译 -->
     <div class="set-section">
-      <div class="set-title">🌐 百度翻译</div>
+      <div class="set-title">🌐 百度翻译（中文查英文用）</div>
       <div class="sync-hint">
         去 <b>fanyi-api.baidu.com</b> 申请 APP ID 和密钥。填完后，新建单词页可以一键填释义和音标。
       </div>
@@ -1295,6 +1317,12 @@ const S = {
   imgApi: {
     get provider() { try { return localStorage.getItem('lexivault.mobile.imgApi.provider') || 'pixabay'; } catch (e) { return 'pixabay'; } },
     get key() { try { return localStorage.getItem('lexivault.mobile.imgApi.key') || ''; } catch (e) { return ''; } },
+  },
+
+  // 接口盒子词典 API
+  apiHz: {
+    get id()  { try { return localStorage.getItem('lexivault.mobile.apiHz.id') || ''; } catch (e) { return ''; } },
+    get key() { try { return localStorage.getItem('lexivault.mobile.apiHz.key') || ''; } catch (e) { return ''; } },
   },
 
   // 总词库筛选状态
@@ -2078,6 +2106,91 @@ async function baiduTranslate(text, from = 'auto', to = 'en') {
     return (data.trans_result || []).map(r => r.dst).join('\n').split('\n').filter(Boolean);
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/* ── 接口盒子词典（英查中，带音标和词性）── */
+async function fetchWordInfoFromApiHz(word) {
+  const id = S.apiHz.id;
+  const key = S.apiHz.key;
+  if (!id || !key) return null;
+  const url = `https://cn.apihz.cn/api/zici/danci.php?id=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}&word=${encodeURIComponent(word)}`;
+  let resp;
+  if (typeof window.__LEXIVAULT_DAV_PROXY__ === 'function') {
+    resp = await window.__LEXIVAULT_DAV_PROXY__('GET', url, {}, null);
+  } else {
+    resp = await fetch(url);
+  }
+  if (!resp.ok) return null;
+  const text = await resp.text();
+  let data;
+  try { data = JSON.parse(text); } catch (e) { return null; }
+  if (Number(data.code) !== 200) return null;
+
+  // 音标：优先英式
+  let phonetic = (data.british || data.american || '').trim();
+  // 词性 + 释义从 jbjs 里拆
+  const jbjs = (data.jbjs || '').trim();
+  let pos = '';
+  let meaning = jbjs;
+  const m = jbjs.match(/^([a-z]{1,6}\.)\s*(.+)$/i);
+  if (m) {
+    pos = m[1].toLowerCase();
+    meaning = m[2].trim();
+  }
+  return { phonetic, pos, meaning };
+}
+
+/* 把 fetchWordInfo 的结果填进新建表单 */
+function fillWordInfo(info) {
+  if (!info) return;
+  if (info.meaning) {
+    C.meanings = [{ pos: info.pos || '', text: info.meaning }];
+    renderCreateMeanings();
+  }
+  if (info.phonetic) {
+    let ph = info.phonetic;
+    if (!/^[\/\[ˈˌ]/.test(ph)) ph = '/' + ph + '/';
+    $('#cwPhonetic').value = ph;
+    C.phonetic = ph;
+  }
+}
+
+function syncApiHzUI() {
+  const idEl = $('#apiHzId');
+  const keyEl = $('#apiHzKey');
+  const statusEl = $('#apiHzStatus');
+  if (!idEl || !keyEl || !statusEl) return;
+  const id = S.apiHz.id;
+  const key = S.apiHz.key;
+  idEl.value = id;
+  keyEl.value = key;
+  if (id && key) {
+    statusEl.className = 'sync-status ok';
+    statusEl.textContent = '✅ 已配置';
+  } else {
+    statusEl.className = 'sync-status';
+    statusEl.textContent = '未配置';
+  }
+}
+
+async function testApiHz() {
+  const statusEl = $('#apiHzStatus');
+  const setStatus = (text, type) => {
+    if (!statusEl) return;
+    statusEl.className = 'sync-status ' + (type === 'info' ? '' : type);
+    statusEl.textContent = text;
+  };
+  const id = S.apiHz.id;
+  const key = S.apiHz.key;
+  if (!id || !key) return setStatus('⚠️ 请先填写 ID 和 KEY，然后保存', 'warn');
+  setStatus('⏳ 正在测试…');
+  try {
+    const info = await fetchWordInfoFromApiHz('apple');
+    if (!info) return setStatus('❌ 没有返回结果，检查 ID / KEY 是否正确', 'err');
+    setStatus(`✅ 连接成功！apple → ${info.pos ? '[' + info.pos + '] ' : ''}${info.meaning || '（无释义）'}`, 'ok');
+  } catch (err) {
+    setStatus('❌ ' + (err.message || err), 'err');
   }
 }
 
@@ -3007,40 +3120,51 @@ function bindEvents() {
     renderLibrary();
   });
 
-  // ── 一键查词（百度翻译）──
+  // ── 一键查词（英文走接口盒子，中文走百度翻译）──
   const _btnDF = $('#btnDictFill');
   if (_btnDF) _btnDF.onclick = async () => {
     const w = ($('#cwText').value || '').trim();
     if (!w) return toast('请先输入英文单词', 'warn');
-    if (!S.baiduApi.appId || !S.baiduApi.secretKey) {
-      return toast('请先到设置里配置百度翻译', 'warn');
-    }
     toast('正在查询…');
     try {
       const hasChinese = /[\u4e00-\u9fa5]/.test(w);
+
       if (hasChinese) {
+        // 中文 → 百度翻译得到英文
+        if (!S.baiduApi.appId || !S.baiduApi.secretKey) {
+          return toast('请先到设置里配置百度翻译', 'warn');
+        }
         const results = await baiduTranslate(w, 'auto', 'en');
-        if (results.length) {
-          const en = results[0].trim();
-          $('#cwText').value = en;
-          C.word = en;
+        if (!results.length) return toast('翻译失败', 'err');
+        const en = results[0].trim();
+        $('#cwText').value = en;
+        C.word = en;
+
+        // 用接口盒子给这个英文单词填音标 / 释义
+        const info = await fetchWordInfoFromApiHz(en);
+        if (info && info.meaning) {
+          fillWordInfo(info);
+          toast(`已译为「${en}」`, 'ok');
+        } else {
+          // 兜底：直接用百度的中文译文
           const back = await baiduTranslate(en, 'en', 'zh');
           if (back.length) {
             C.meanings = [{ pos: '', text: back.join('；') }];
             renderCreateMeanings();
           }
           toast(`已译为「${en}」`, 'ok');
-        } else {
-          toast('翻译失败', 'err');
         }
       } else {
-        const results = await baiduTranslate(w, 'en', 'zh');
-        if (results.length) {
-          C.meanings = [{ pos: '', text: results.join('；') }];
-          renderCreateMeanings();
-          toast(`已填充「${w}」的释义`, 'ok');
+        // 英文 → 接口盒子
+        if (!S.apiHz.id || !S.apiHz.key) {
+          return toast('请先到设置里配置接口盒子词典', 'warn');
+        }
+        const info = await fetchWordInfoFromApiHz(w);
+        if (info && info.meaning) {
+          fillWordInfo(info);
+          toast(`已填充「${w}」`, 'ok');
         } else {
-          toast('没有找到释义', 'warn');
+          toast('没有找到「' + w + '」的释义', 'warn');
         }
       }
     } catch (e) {
@@ -3058,6 +3182,19 @@ function bindEvents() {
       renderCreateImages();
     });
   };
+
+  // ── 接口盒子配置 ──
+  const _ahSave = $('#apiHzSave');
+  if (_ahSave) _ahSave.onclick = () => {
+    const id = ($('#apiHzId').value || '').trim();
+    const key = ($('#apiHzKey').value || '').trim();
+    localStorage.setItem('lexivault.mobile.apiHz.id', id);
+    localStorage.setItem('lexivault.mobile.apiHz.key', key);
+    toast('已保存接口盒子配置', 'ok');
+    syncApiHzUI();
+  };
+  const _ahTest = $('#apiHzTest');
+  if (_ahTest) _ahTest.onclick = testApiHz;
 
   // ── 百度翻译配置 ──
   const _bSave = $('#baiduSave');
@@ -3301,6 +3438,7 @@ async function boot() {
   renderLibrary();
   renderTestSetup();
   renderLookup();
+  syncApiHzUI();
   syncBaiduUI();
   syncImgApiUI();
   switchView('create');

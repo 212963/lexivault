@@ -716,6 +716,7 @@ label:first-of-type{margin-top:0}
       <button type="button" class="btn block" id="btnSmartImage" style="margin-top:10px">🌐 智能配图</button>
       <input id="photoInput" type="file" accept="image/*" multiple hidden>
       <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
+    </div>
 
     <button class="btn primary block lg" id="btnSaveWord">保存到词库</button>
 
@@ -1511,7 +1512,11 @@ function getMeanings(word) {
   if (word.meaning) return [{ pos: '', text: word.meaning }];
   return [];
 }
-function shuffle(arr) {
+function meaningsToString(arr) {
+  return (arr || []).filter(m => m && m.text && m.text.trim())
+    .map(m => (m.pos ? `[${m.pos}] ` : '') + m.text.trim())
+    .join('；');
+}function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

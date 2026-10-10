@@ -547,6 +547,27 @@ label:first-of-type{margin-top:0}
 }
 .list-row:last-child{margin-bottom:0}
 
+/* ═══════════ 查词页分组 & 词典卡片 ═══════════ */
+.lookup-section-title{
+  display:flex;align-items:center;gap:8px;
+  font-size:11.5px;font-weight:800;letter-spacing:1.4px;
+  color:var(--muted);margin:16px 2px 8px;
+}
+.lookup-section-title:first-child{margin-top:0}
+.lookup-section-title span{
+  padding:1px 7px;border-radius:99px;font-size:11px;
+  background:rgba(var(--text-rgb),.08);color:var(--text);
+  letter-spacing:0;font-weight:700;
+}
+.lk-card-dict{
+  background:rgba(var(--accent-rgb),.045);
+  border-color:rgba(var(--accent-rgb),.16);
+}
+.lk-thumb-dict{
+  display:grid;place-items:center;font-size:22px;
+  background:rgba(var(--accent-rgb),.14);
+}
+
 /* ═══════════ 设置页 ═══════════ */
 .set-section{margin-bottom:22px}
 .theme-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -1470,7 +1491,7 @@ const Dict = (() => {
     return _map.get(String(word).trim().toLowerCase()) || null;
   }
 
-  return { load, lookup };
+  return { load, lookup, getMap: () => _map, isLoaded: () => !!_map };
 })();
 
 /* ══════════════════════════════════════════════
@@ -2550,8 +2571,8 @@ function renderLookup() {
   if (!q) {
     box.innerHTML = `<div class="lookup-tip">
       <div class="big">🔍</div>
-      搜索手机里的单词<br>
-      <span style="font-size:12.5px">支持英文或中文释义</span>
+      搜索英文或中文<br>
+      <span style="font-size:12.5px">会同时搜索「我的词库」和「离线词典」</span>
     </div>`;
     return;
   }
@@ -2560,58 +2581,182 @@ function renderLookup() {
   _lookupTimer = setTimeout(() => doLookupSearch(q), 150);
 }
 
-function doLookupSearch(keyword) {
+/* 从离线词典 cet4.json 里搜词（同步，需要 map 已加载） */
+function searchLocalDict(keyword) {
+  const map = Dict.getMap();
+  if (!map) return [];
+  const k = keyword.toLowerCase();
+  const out = [];
+  for (const entry of map.values()) {
+    const w = (entry.word || '').toLowerCase();
+    let score = -1;
+    if (w === k) score = 95;
+    else if (w.startsWith(k)) score = 70;
+    else if (w.includes(k)) score = 50;
+    else {
+      const mArr = entry.meanings || [];
+      if (mArr.some(m => (m.text || '').toLowerCase().includes(k))) score = 25;
+    }
+    if (score > 0) out.push({ entry, score });
+  }
+  out.sort((a, b) => b.score - a.score);
+  return out;
+}
+
+async function doLookupSearch(keyword) {
   const box = $('#lookupResult');
   if (!box) return;
   const k = keyword.toLowerCase();
-  const results = [];
 
+  box.innerHTML = `<div class="lookup-tip">
+    <div class="big">⏳</div>正在搜索…
+  </div>`;
+
+  // 1) 搜「我的词库」
+  const myResults = [];
   for (const w of S.words) {
     const text = (w.text || '').toLowerCase();
     const meaning = (w.meaning || '').toLowerCase();
     let score = -1;
-    if (text === k) score = 100;              // 完全相等
-    else if (text.startsWith(k)) score = 80;  // 前缀
-    else if (text.includes(k)) score = 60;    // 包含
-    else if (meaning.includes(k)) score = 30; // 中文释义匹配
-    if (score > 0) results.push({ w, score });
+    if (text === k) score = 100;
+    else if (text.startsWith(k)) score = 80;
+    else if (text.includes(k)) score = 60;
+    else if (meaning.includes(k)) score = 30;
+    if (score > 0) myResults.push({ w, score });
   }
-  results.sort((a, b) => b.score - a.score);
+  myResults.sort((a, b) => b.score - a.score);
 
-  if (!results.length) {
+  // 2) 加载离线词典（首次会 fetch cet4.json，之后瞬时返回）
+  try { await Dict.load(); } catch (e) {}
+  const dictResults = searchLocalDict(keyword);
+
+  // 3) 渲染
+  renderLookupResults(keyword, myResults, dictResults);
+}
+
+function renderLookupResults(keyword, myResults, dictResults) {
+  const box = $('#lookupResult');
+  if (!box) return;
+  const total = myResults.length + dictResults.length;
+
+  if (!total) {
     box.innerHTML = `<div class="lookup-tip">
       没有找到「${esc(keyword)}」<br>
-      <span style="font-size:12.5px">这个词还没加进手机词库</span>
+      <span style="font-size:12.5px">我的词库和离线词典里都没有</span>
     </div>`;
     return;
   }
 
-  box.innerHTML = results.map(({ w }, i) => {
-    const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
-    const meanings = getMeanings(w);
-    const meaningHtml = meanings.length
-      ? meanings.slice(0, 2).map(m =>
-          (m.pos ? `<span class="lk-pos">${esc(m.pos)}</span>` : '') + esc(m.text)
-        ).join('；')
-      : '—';
-    return `<div class="lk-card" data-id="${w.id}" style="animation-delay:${Math.min(i * 22, 200)}ms">
-      ${url
-        ? `<img class="lk-thumb" src="${url}" alt="">`
-        : `<div class="lk-thumb lk-thumb-empty">无图</div>`}
-      <div class="lk-body">
-        <div class="lk-word">${esc(w.text)}</div>
-        ${w.phonetic ? `<div class="lk-phon">${esc(w.phonetic)}</div>` : ''}
-        <div class="lk-mean">${meaningHtml}</div>
-      </div>
-    </div>`;
-  }).join('');
+  let html = '';
+
+  if (myResults.length) {
+    html += `<div class="lookup-section-title">我的词库 <span>${myResults.length}</span></div>`;
+    html += myResults.map(({ w }, i) => {
+      const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
+      const meanings = getMeanings(w);
+      const meaningHtml = meanings.length
+        ? meanings.slice(0, 2).map(m =>
+            (m.pos ? `<span class="lk-pos">${esc(m.pos)}</span>` : '') + esc(m.text)
+          ).join('；')
+        : '—';
+      return `<div class="lk-card" data-src="mine" data-id="${w.id}" style="animation-delay:${Math.min(i * 22, 200)}ms">
+        ${url
+          ? `<img class="lk-thumb" src="${url}" alt="">`
+          : `<div class="lk-thumb lk-thumb-empty">无图</div>`}
+        <div class="lk-body">
+          <div class="lk-word">${esc(w.text)}</div>
+          ${w.phonetic ? `<div class="lk-phon">${esc(w.phonetic)}</div>` : ''}
+          <div class="lk-mean">${meaningHtml}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  if (dictResults.length) {
+    html += `<div class="lookup-section-title">离线词典 <span>${dictResults.length}</span></div>`;
+    html += dictResults.map(({ entry }, i) => {
+      const meanings = entry.meanings || [];
+      const meaningHtml = meanings.length
+        ? meanings.slice(0, 2).map(m =>
+            (m.pos ? `<span class="lk-pos">${esc(m.pos)}</span>` : '') + esc(m.text)
+          ).join('；')
+        : '—';
+      return `<div class="lk-card lk-card-dict" data-src="dict" data-word="${esc(entry.word)}" style="animation-delay:${Math.min(i * 22, 200)}ms">
+        <div class="lk-thumb lk-thumb-dict">📖</div>
+        <div class="lk-body">
+          <div class="lk-word">${esc(entry.word)}</div>
+          ${entry.phonetic ? `<div class="lk-phon">${esc(entry.phonetic)}</div>` : ''}
+          <div class="lk-mean">${meaningHtml}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  box.innerHTML = html;
 
   $$('.lk-card', box).forEach(card => {
     card.onclick = () => {
-      const w = S.words.find(x => x.id === card.dataset.id);
-      if (w) openLookupDetail(w);
+      if (card.dataset.src === 'mine') {
+        const w = S.words.find(x => x.id === card.dataset.id);
+        if (w) openLookupDetail(w);
+      } else {
+        const map = Dict.getMap();
+        const entry = map && map.get(String(card.dataset.word).toLowerCase());
+        if (entry) openDictDetail(entry);
+      }
     };
   });
+}
+
+/* 离线词典词条详情（大卡片弹窗） */
+function openDictDetail(entry) {
+  if (!entry) return;
+  const modal = $('#lookupDetailModal');
+  if (!modal) return;
+
+  const meanings = entry.meanings || [];
+  const meaningHtml = meanings.length
+    ? meanings.map(m => `
+        <div class="lkd-mean-row">
+          ${m.pos ? `<span class="lkd-pos">${esc(m.pos)}</span>` : ''}
+          <span class="lkd-text">${esc(m.text)}</span>
+        </div>`).join('')
+    : '<div class="lkd-mean-row"><span class="lkd-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
+
+  // 词组 / 例句：把 cet4.json 里的结构化数据，转成和词库词条一样的文本格式，
+  // 再复用上一轮的 renderPhrasesBlock / renderSentencesBlock
+  const phrases = (entry.phrases || [])
+    .filter(p => p && p.phrase && p.translation)
+    .map(p => `${p.phrase}: ${p.translation}`);
+  const sentences = (entry.sentences || [])
+    .filter(s => s && s.sentence)
+    .map(s => {
+      const en = String(s.sentence).trim();
+      const cn = s.translation ? String(s.translation).trim() : '';
+      return cn ? `${en}  ${cn}` : en;
+    });
+
+  const phrasesBlock = renderPhrasesBlock(phrases, 3, 'ddMorePhrases');
+  const sentencesBlock = renderSentencesBlock(sentences, 1, 'ddMoreSentences');
+
+  $('#lookupDetailBody').innerHTML = `
+    <div class="lkd-word">${esc(entry.word)}</div>
+    ${entry.phonetic ? `<div class="lkd-phon">${esc(entry.phonetic)}</div>` : ''}
+    <div class="lkd-meanings">${meaningHtml}</div>
+    ${phrasesBlock}
+    ${sentencesBlock}
+    <div class="lkd-actions" style="margin-top:14px">
+      <button class="btn" id="ddSpeak">🔊 发音</button>
+      <button class="btn" id="ddClose">关闭</button>
+    </div>`;
+
+  modal.hidden = false;
+  const mp = $('#ddMorePhrases');
+  if (mp) mp.onclick = () => openListModal('全部词组', phrases, 'phrases');
+  const ms = $('#ddMoreSentences');
+  if (ms) ms.onclick = () => openListModal('全部例句', sentences, 'sentences');
+  $('#ddSpeak').onclick = () => Speech.speak(entry.word);
+  $('#ddClose').onclick = () => { modal.hidden = true; };
 }
 
 function openLookupDetail(w) {

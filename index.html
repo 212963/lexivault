@@ -2777,8 +2777,9 @@ function openLibraryDetail(w) {
       </span>
     </div>
     ${w.sentence ? `<div style="margin-top:12px;padding:11px 14px;border-radius:11px;background:rgba(var(--accent2-rgb),.08);border-left:3px solid var(--accent2);font-size:14px;font-style:italic;line-height:1.6;color:var(--text)">${esc(w.sentence)}</div>` : ''}
-    <div class="lkd-actions" style="margin-top:14px">
+    <div class="lkd-actions" style="margin-top:14px;grid-template-columns:1fr 1fr 1fr">
       <button class="btn" id="wdSpeak">🔊 发音</button>
+      <button class="btn" id="wdEdit">✏️ 编辑</button>
       <button class="btn danger" id="wdDelete">🗑 删除</button>
     </div>
     <button class="btn block" id="wdClose" style="margin-top:10px">关闭</button>`;
@@ -2786,12 +2787,134 @@ function openLibraryDetail(w) {
   modal.hidden = false;
   $('#wdSpeak').onclick = () => Speech.speak(w.text);
   $('#wdClose').onclick = () => { modal.hidden = true; };
+  $('#wdEdit').onclick = () => openEditWord(w);
   $('#wdDelete').onclick = async () => {
     if (!confirm(`删除「${w.text}」？\n\n如果图片没被其他单词引用，会一并删掉。`)) return;
     await deleteWordFromLibrary(w);
     modal.hidden = true;
     renderLibrary();
     toast('已删除', 'ok');
+  };
+}
+
+/* ── 编辑单词（就地修改，写回 DB 并刷新列表）── */
+function openEditWord(w) {
+  const body = $('#wordDetailBody');
+  if (!body) return;
+
+  // 编辑中的临时状态（不影响 S.words，直到保存）
+  const edit = {
+    text: w.text || '',
+    phonetic: w.phonetic || '',
+    category: w.category || '',
+    meanings: (getMeanings(w).length
+      ? getMeanings(w).map(m => ({ pos: m.pos || '', text: m.text || '' }))
+      : [{ pos: '', text: '' }]),
+  };
+
+  const renderMeanings = () => {
+    const wrap = $('#ewMeaningsList');
+    if (!wrap) return;
+    wrap.innerHTML = edit.meanings.map((m, i) => `
+      <div class="meaning-row" data-i="${i}">
+        <select class="pos-select" data-i="${i}">
+          ${POS_LIST.map(p => `<option value="${p.v}" ${p.v === (m.pos || '') ? 'selected' : ''}>${p.l}</option>`).join('')}
+        </select>
+        <input class="meaning-input" data-i="${i}" value="${esc(m.text || '')}"
+               placeholder="${i === 0 ? '例如：苹果' : '另一个意思…'}"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        ${edit.meanings.length > 1 ? `<button type="button" class="remove-mean" data-i="${i}" title="删除">✕</button>` : ''}
+      </div>
+    `).join('');
+    $$('.pos-select', wrap).forEach(sel => {
+      sel.onchange = e => { edit.meanings[+e.target.dataset.i].pos = e.target.value; };
+    });
+    $$('.meaning-input', wrap).forEach(inp => {
+      inp.oninput = e => { edit.meanings[+e.target.dataset.i].text = e.target.value; };
+    });
+    $$('.remove-mean', wrap).forEach(btn => {
+      btn.onclick = () => {
+        edit.meanings.splice(+btn.dataset.i, 1);
+        if (!edit.meanings.length) edit.meanings.push({ pos: '', text: '' });
+        renderMeanings();
+      };
+    });
+  };
+
+  body.innerHTML = `
+    <div style="font-size:17px;font-weight:700;margin-bottom:16px">✏️ 编辑单词</div>
+
+    <label>英文单词</label>
+    <input class="input" id="ewText" value="${esc(edit.text)}"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <label>音标（可选）</label>
+    <input class="input" id="ewPhonetic" value="${esc(edit.phonetic)}"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <label>分类（可选）</label>
+    <input class="input" id="ewCategory" value="${esc(edit.category)}"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <label>中文释义</label>
+    <div id="ewMeaningsList" class="meanings-list"></div>
+    <button type="button" class="btn block" id="ewAddMeaning"
+            style="border-style:dashed;color:var(--muted);font-size:13.5px;min-height:42px">
+      ＋ 添加意思
+    </button>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px">
+      <button class="btn" id="ewCancel">取消</button>
+      <button class="btn primary" id="ewSave">💾 保存</button>
+    </div>
+  `;
+
+  renderMeanings();
+
+  $('#ewText').oninput = e => { edit.text = e.target.value; };
+  $('#ewPhonetic').oninput = e => { edit.phonetic = e.target.value; };
+  $('#ewCategory').oninput = e => { edit.category = e.target.value; };
+  $('#ewAddMeaning').onclick = () => {
+    edit.meanings.push({ pos: '', text: '' });
+    renderMeanings();
+    setTimeout(() => {
+      const inputs = $$('#ewMeaningsList .meaning-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }, 30);
+  };
+
+  $('#ewCancel').onclick = () => {
+    openLibraryDetail(w);
+  };
+
+  $('#ewSave').onclick = async () => {
+    const text = edit.text.trim();
+    if (!text) return toast('请先输入英文单词', 'warn');
+
+    const lower = text.toLowerCase();
+    const dup = S.words.find(x => x.id !== w.id && (x.text || '').toLowerCase() === lower);
+    if (dup) return toast('已存在同名单词「' + dup.text + '」', 'warn');
+
+    const validMeanings = edit.meanings.filter(m => m.text && m.text.trim());
+    if (!validMeanings.length) return toast('请至少填写一个中文意思', 'warn');
+
+    w.text = text;
+    w.phonetic = edit.phonetic.trim();
+    w.category = edit.category.trim() || '未分类';
+    w.meanings = validMeanings.map(m => ({ pos: m.pos || '', text: m.text.trim() }));
+    w.meaning = w.meanings.map(m => (m.pos ? `[${m.pos}] ` : '') + m.text).join('；');
+    w.updatedAt = nowMs();  // ★ 同步用
+
+    try {
+      await DB.put('words', w);
+      toast('已保存', 'ok');
+      renderLibrary();
+      renderLookup();
+      renderTestSetup();
+      openLibraryDetail(w);
+    } catch (e) {
+      toast('保存失败：' + (e.message || e), 'err');
+    }
   };
 }
 

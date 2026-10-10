@@ -1701,6 +1701,9 @@ const POS_LIST = [
   { v:'',     l:'（无）' },
   { v:'n.',   l:'n. 名' },
   { v:'v.',   l:'v. 动' },
+  { v:'vt.',  l:'vt. 及物动' },
+  { v:'vi.',  l:'vi. 不及物动' },
+  { v:'aux.', l:'aux. 助动' },
   { v:'adj.', l:'adj. 形' },
   { v:'adv.', l:'adv. 副' },
   { v:'prep.',l:'prep. 介' },
@@ -1709,8 +1712,22 @@ const POS_LIST = [
   { v:'num.', l:'num. 数' },
   { v:'art.', l:'art. 冠' },
   { v:'int.', l:'int. 感' },
+  { v:'det.', l:'det. 限定' },
+  { v:'abbr.',l:'abbr. 缩' },
   { v:'phr.', l:'phr. 短语' },
 ];
+
+/* 生成词性下拉选项：常列表 + 未知词性 fallback */
+function buildPosOptions(currentPos) {
+  const cur = (currentPos || '').trim();
+  const list = POS_LIST.slice();
+  if (cur && !list.some(p => p.v === cur)) {
+    list.push({ v: cur, l: cur });
+  }
+  return list.map(p =>
+    `<option value="${esc(p.v)}" ${p.v === cur ? 'selected' : ''}>${esc(p.l)}</option>`
+  ).join('');
+}
 
 // 新建单词的草稿状态（不进 S，是页面级的临时状态）
 const C = {
@@ -1733,7 +1750,7 @@ function renderCreateMeanings() {
   wrap.innerHTML = list.map((m, i) => `
     <div class="meaning-row" data-i="${i}">
       <select class="pos-select" data-i="${i}">
-        ${POS_LIST.map(p => `<option value="${p.v}" ${p.v === (m.pos || '') ? 'selected' : ''}>${p.l}</option>`).join('')}
+        ${buildPosOptions(m.pos)}
       </select>
       <input class="meaning-input" data-i="${i}" value="${esc(m.text || '')}"
              placeholder="${i === 0 ? '例如：苹果' : '另一个意思…'}"
@@ -2818,7 +2835,7 @@ function openEditWord(w) {
     wrap.innerHTML = edit.meanings.map((m, i) => `
       <div class="meaning-row" data-i="${i}">
         <select class="pos-select" data-i="${i}">
-          ${POS_LIST.map(p => `<option value="${p.v}" ${p.v === (m.pos || '') ? 'selected' : ''}>${p.l}</option>`).join('')}
+          ${buildPosOptions(m.pos)}
         </select>
         <input class="meaning-input" data-i="${i}" value="${esc(m.text || '')}"
                placeholder="${i === 0 ? '例如：苹果' : '另一个意思…'}"

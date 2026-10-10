@@ -400,7 +400,7 @@ label:first-of-type{margin-top:0}
 /* ═══════════ 查词 ═══════════ */
 .lookup-box{position:relative;margin-bottom:14px}
 .lookup-input{
-  width:100%;padding:14px 46px 14px 16px;font-size:16px;
+  width:100%;padding:14px 108px 14px 16px;font-size:16px;
   border-radius:14px;border:1px solid var(--border);
   background:rgba(var(--surface-rgb),.85);color:var(--text);
   font-family:inherit;outline:none;transition:all .22s var(--ease);
@@ -411,13 +411,25 @@ label:first-of-type{margin-top:0}
   box-shadow:0 0 0 3px rgba(var(--accent-rgb),.16);
 }
 .lookup-clear{
-  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  position:absolute;right:64px;top:50%;transform:translateY(-50%);
   width:32px;height:32px;border-radius:9px;border:none;
   background:rgba(var(--text-rgb),.1);color:var(--muted);
   cursor:pointer;font-size:13px;display:grid;place-items:center;
   transition:all .2s var(--ease);
 }
 .lookup-clear:active{background:rgba(255,107,129,.25);color:#ff6b81}
+.lookup-mode{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  height:32px;padding:0 10px;border-radius:9px;border:none;
+  background:rgba(var(--accent-rgb),.16);color:var(--accent);
+  font-family:inherit;font-size:12.5px;font-weight:800;letter-spacing:.3px;
+  cursor:pointer;display:grid;place-items:center;white-space:nowrap;
+  transition:all .2s var(--ease);min-width:50px;
+}
+.lookup-mode:active{transform:translateY(-50%) scale(.94)}
+.lookup-mode.dict{
+  background:rgba(var(--accent2-rgb),.18);color:var(--accent2);
+}
 
 .lookup-tip{
   text-align:center;padding:44px 20px;color:var(--muted);
@@ -818,6 +830,13 @@ label:first-of-type{margin-top:0}
     <h1 id="viewTitle">新建单词</h1>
     <p class="sub" id="viewSub">把一张图片和一个单词绑定起来</p>
   </div>
+  <button class="icon-btn" id="btnCloudSync" title="云同步">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6-1.6A4.5 4.5 0 0 0 6.5 19z"/>
+      <path d="M12 12v6"/>
+      <path d="m9 15 3-3 3 3"/>
+    </svg>
+  </button>
   <button class="icon-btn" id="btnRefresh" title="刷新">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 12a9 9 0 1 1-3-6.7L21 8"/>
@@ -981,6 +1000,7 @@ label:first-of-type{margin-top:0}
              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
              enterkeyhint="search">
       <button class="lookup-clear" id="lookupClear" hidden>✕</button>
+      <button class="lookup-mode" id="lookupMode">词库</button>
     </div>
     <div id="lookupResult"></div>
   </section>
@@ -1223,6 +1243,18 @@ label:first-of-type{margin-top:0}
   </div>
 </div>
 
+<!-- ═══════ 确认弹窗（是 / 否） ═══════ -->
+<div id="confirmModal" class="modal" hidden>
+  <div class="modal-box" style="max-width:400px">
+    <h3 id="confirmTitle">确认</h3>
+    <p id="confirmMsg" class="muted" style="font-size:13.5px;line-height:1.7;margin-bottom:18px"></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button class="btn" id="confirmNo">否</button>
+      <button class="btn primary" id="confirmYes">是</button>
+    </div>
+  </div>
+</div>
+
 <input id="globalImport" type="file" accept=".json,application/json" hidden>
 <div id="toasts"></div>
 
@@ -1319,6 +1351,18 @@ function download(content, filename, type = 'application/json') {
   const a = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* 通用确认弹窗：标题 / 消息 / 点"是"回调 / 点"否"回调 */
+function openConfirm(title, msg, onYes, onNo) {
+  const modal = $('#confirmModal');
+  if (!modal) return;
+  $('#confirmTitle').textContent = title;
+  $('#confirmMsg').textContent = msg;
+  modal.hidden = false;
+  const close = () => { modal.hidden = true; };
+  $('#confirmYes').onclick = () => { close(); onYes && onYes(); };
+  $('#confirmNo').onclick = () => { close(); onNo && onNo(); };
 }
 
 /* ══════════════════════════════════════════════
@@ -1692,8 +1736,8 @@ function imgURL(id) {
    §5  路由
    ══════════════════════════════════════════════ */
 const VIEW_META = {
-  create:  ['新建单词', '把一张图片和一个单词绑定起来'],
-  library: ['总词库',   '浏览、搜索、管理你的单词'],
+  create:  ['新建单词', '把图片和单词绑定'],
+  library: ['总词库',   '管理你的单词'],
   test:    ['测试',     '检验记忆效果'],
   lookup:  ['查词',     '搜索手机里的单词'],
 };
@@ -2560,6 +2604,28 @@ function showResult() {
    ══════════════════════════════════════════════ */
 let _lookupTimer = null;
 
+const LOOKUP_MODE_KEY = 'lexivault.mobile.lookupMode';
+function getLookupMode() {
+  try { return localStorage.getItem(LOOKUP_MODE_KEY) || 'mine'; }
+  catch (e) { return 'mine'; }
+}
+/* 同步按钮文字 / 颜色 / 输入框 placeholder */
+function refreshLookupModeUI() {
+  const btn = $('#lookupMode');
+  const input = $('#lookupInput');
+  if (!btn) return;
+  const m = getLookupMode();
+  if (m === 'dict') {
+    btn.textContent = '词典';
+    btn.classList.add('dict');
+    if (input) input.placeholder = '搜索离线词典…';
+  } else {
+    btn.textContent = '词库';
+    btn.classList.remove('dict');
+    if (input) input.placeholder = '搜索我的词库…';
+  }
+}
+
 function renderLookup() {
   const input = $('#lookupInput');
   const box = $('#lookupResult');
@@ -2569,11 +2635,18 @@ function renderLookup() {
   if (clearBtn) clearBtn.hidden = !q;
 
   if (!q) {
-    box.innerHTML = `<div class="lookup-tip">
-      <div class="big">🔍</div>
-      搜索英文或中文<br>
-      <span style="font-size:12.5px">会同时搜索「我的词库」和「离线词典」</span>
-    </div>`;
+    const mode = getLookupMode();
+    box.innerHTML = mode === 'dict'
+      ? `<div class="lookup-tip">
+          <div class="big">📖</div>
+          在离线词典中搜索<br>
+          <span style="font-size:12.5px">四级 · 7508 词 · 支持英文或中文</span>
+        </div>`
+      : `<div class="lookup-tip">
+          <div class="big">📚</div>
+          在我的词库中搜索<br>
+          <span style="font-size:12.5px">只搜你添加过的单词</span>
+        </div>`;
     return;
   }
 
@@ -2606,104 +2679,112 @@ function searchLocalDict(keyword) {
 async function doLookupSearch(keyword) {
   const box = $('#lookupResult');
   if (!box) return;
+  const mode = getLookupMode();
   const k = keyword.toLowerCase();
 
   box.innerHTML = `<div class="lookup-tip">
     <div class="big">⏳</div>正在搜索…
   </div>`;
 
-  // 1) 搜「我的词库」
-  const myResults = [];
-  for (const w of S.words) {
-    const text = (w.text || '').toLowerCase();
-    const meaning = (w.meaning || '').toLowerCase();
-    let score = -1;
-    if (text === k) score = 100;
-    else if (text.startsWith(k)) score = 80;
-    else if (text.includes(k)) score = 60;
-    else if (meaning.includes(k)) score = 30;
-    if (score > 0) myResults.push({ w, score });
+  if (mode === 'dict') {
+    // ── 词典模式 ──
+    try { await Dict.load(); } catch (e) {}
+    const results = searchLocalDict(keyword);
+    renderDictResults(keyword, results);
+  } else {
+    // ── 我的词库模式 ──
+    const results = [];
+    for (const w of S.words) {
+      const text = (w.text || '').toLowerCase();
+      const meaning = (w.meaning || '').toLowerCase();
+      let score = -1;
+      if (text === k) score = 100;
+      else if (text.startsWith(k)) score = 80;
+      else if (text.includes(k)) score = 60;
+      else if (meaning.includes(k)) score = 30;
+      if (score > 0) results.push({ w, score });
+    }
+    results.sort((a, b) => b.score - a.score);
+    renderMyWordResults(keyword, results);
   }
-  myResults.sort((a, b) => b.score - a.score);
-
-  // 2) 加载离线词典（首次会 fetch cet4.json，之后瞬时返回）
-  try { await Dict.load(); } catch (e) {}
-  const dictResults = searchLocalDict(keyword);
-
-  // 3) 渲染
-  renderLookupResults(keyword, myResults, dictResults);
 }
 
-function renderLookupResults(keyword, myResults, dictResults) {
+/* 渲染「我的词库」结果 */
+function renderMyWordResults(keyword, results) {
   const box = $('#lookupResult');
   if (!box) return;
-  const total = myResults.length + dictResults.length;
 
-  if (!total) {
+  if (!results.length) {
     box.innerHTML = `<div class="lookup-tip">
-      没有找到「${esc(keyword)}」<br>
-      <span style="font-size:12.5px">我的词库和离线词典里都没有</span>
+      我的词库里没有「${esc(keyword)}」<br>
+      <span style="font-size:12.5px">点搜索框右边的「词典」再试一次</span>
     </div>`;
     return;
   }
 
-  let html = '';
-
-  if (myResults.length) {
-    html += `<div class="lookup-section-title">我的词库 <span>${myResults.length}</span></div>`;
-    html += myResults.map(({ w }, i) => {
-      const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
-      const meanings = getMeanings(w);
-      const meaningHtml = meanings.length
-        ? meanings.slice(0, 2).map(m =>
-            (m.pos ? `<span class="lk-pos">${esc(m.pos)}</span>` : '') + esc(m.text)
-          ).join('；')
-        : '—';
-      return `<div class="lk-card" data-src="mine" data-id="${w.id}" style="animation-delay:${Math.min(i * 22, 200)}ms">
-        ${url
-          ? `<img class="lk-thumb" src="${url}" alt="">`
-          : `<div class="lk-thumb lk-thumb-empty">无图</div>`}
-        <div class="lk-body">
-          <div class="lk-word">${esc(w.text)}</div>
-          ${w.phonetic ? `<div class="lk-phon">${esc(w.phonetic)}</div>` : ''}
-          <div class="lk-mean">${meaningHtml}</div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  if (dictResults.length) {
-    html += `<div class="lookup-section-title">离线词典 <span>${dictResults.length}</span></div>`;
-    html += dictResults.map(({ entry }, i) => {
-      const meanings = entry.meanings || [];
-      const meaningHtml = meanings.length
-        ? meanings.slice(0, 2).map(m =>
-            (m.pos ? `<span class="lk-pos">${esc(m.pos)}</span>` : '') + esc(m.text)
-          ).join('；')
-        : '—';
-      return `<div class="lk-card lk-card-dict" data-src="dict" data-word="${esc(entry.word)}" style="animation-delay:${Math.min(i * 22, 200)}ms">
-        <div class="lk-thumb lk-thumb-dict">📖</div>
-        <div class="lk-body">
-          <div class="lk-word">${esc(entry.word)}</div>
-          ${entry.phonetic ? `<div class="lk-phon">${esc(entry.phonetic)}</div>` : ''}
-          <div class="lk-mean">${meaningHtml}</div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  box.innerHTML = html;
+  box.innerHTML = results.map(({ w }, i) => {
+    const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
+    const meanings = getMeanings(w);
+    const meaningHtml = meanings.length
+      ? meanings.slice(0, 2).map(m =>
+          (m.pos ? `<span class="lk-pos">${esc(m.pos)}</span>` : '') + esc(m.text)
+        ).join('；')
+      : '—';
+    return `<div class="lk-card" data-id="${w.id}" style="animation-delay:${Math.min(i * 22, 200)}ms">
+      ${url
+        ? `<img class="lk-thumb" src="${url}" alt="">`
+        : `<div class="lk-thumb lk-thumb-empty">无图</div>`}
+      <div class="lk-body">
+        <div class="lk-word">${esc(w.text)}</div>
+        ${w.phonetic ? `<div class="lk-phon">${esc(w.phonetic)}</div>` : ''}
+        <div class="lk-mean">${meaningHtml}</div>
+      </div>
+    </div>`;
+  }).join('');
 
   $$('.lk-card', box).forEach(card => {
     card.onclick = () => {
-      if (card.dataset.src === 'mine') {
-        const w = S.words.find(x => x.id === card.dataset.id);
-        if (w) openLookupDetail(w);
-      } else {
-        const map = Dict.getMap();
-        const entry = map && map.get(String(card.dataset.word).toLowerCase());
-        if (entry) openDictDetail(entry);
-      }
+      const w = S.words.find(x => x.id === card.dataset.id);
+      if (w) openLookupDetail(w);
+    };
+  });
+}
+
+/* 渲染「离线词典」结果 */
+function renderDictResults(keyword, results) {
+  const box = $('#lookupResult');
+  if (!box) return;
+
+  if (!results.length) {
+    box.innerHTML = `<div class="lookup-tip">
+      离线词典里没有「${esc(keyword)}」<br>
+      <span style="font-size:12.5px">试试换个词，或切回「词库」模式</span>
+    </div>`;
+    return;
+  }
+
+  box.innerHTML = results.map(({ entry }, i) => {
+    const meanings = entry.meanings || [];
+    const meaningHtml = meanings.length
+      ? meanings.slice(0, 2).map(m =>
+          (m.pos ? `<span class="lk-pos">${esc(m.pos)}</span>` : '') + esc(m.text)
+        ).join('；')
+      : '—';
+    return `<div class="lk-card lk-card-dict" data-word="${esc(entry.word)}" style="animation-delay:${Math.min(i * 22, 200)}ms">
+      <div class="lk-thumb lk-thumb-dict">📖</div>
+      <div class="lk-body">
+        <div class="lk-word">${esc(entry.word)}</div>
+        ${entry.phonetic ? `<div class="lk-phon">${esc(entry.phonetic)}</div>` : ''}
+        <div class="lk-mean">${meaningHtml}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  $$('.lk-card', box).forEach(card => {
+    card.onclick = () => {
+      const map = Dict.getMap();
+      const entry = map && map.get(String(card.dataset.word).toLowerCase());
+      if (entry) openDictDetail(entry);
     };
   });
 }
@@ -3689,8 +3770,11 @@ async function importPack(file) {
     renderCreate();
     renderTestSetup();
     renderLookup();
+    // 只有设置页当前打开着，才刷新它里面的统计数字；从顶部栏触发的同步不该强弹设置页
+    if (!$('#settingsModal').hidden) openSettings();
+
   } catch (e) {
-    console.error(e);
+    console.error('同步失败', e);
     toast('导入失败：' + (e.message || '文件解析错误'), 'err');
   }
 }
@@ -4115,6 +4199,14 @@ function bindEvents() {
     renderLookup();
     _lkIn.focus();
   };
+  const _lkMode = $('#lookupMode');
+  if (_lkMode) _lkMode.onclick = () => {
+    const next = getLookupMode() === 'mine' ? 'dict' : 'mine';
+    try { localStorage.setItem(LOOKUP_MODE_KEY, next); } catch (e) {}
+    refreshLookupModeUI();
+    renderLookup();
+    toast(next === 'dict' ? '已切到「词典」模式' : '已切到「词库」模式', 'ok');
+  };
 
   // ── 主题切换 ──
   document.querySelectorAll('.theme-btn').forEach(btn => {
@@ -4207,6 +4299,26 @@ function bindEvents() {
     });
   }
 
+  // ── 顶部栏云同步 ──
+  const _cBtn = $('#btnCloudSync');
+  if (_cBtn) {
+    _cBtn.addEventListener('click', () => {
+      if (!WebDAV.isConfigured()) {
+        toast('还没配置坚果云，先去设置里填一下', 'warn');
+        openSettings();
+        return;
+      }
+      openConfirm('云同步', '是否立即与坚果云同步？', async () => {
+        _cBtn.classList.add('spinning');
+        try {
+          await syncNow();
+        } finally {
+          _cBtn.classList.remove('spinning');
+        }
+      });
+    });
+  }
+
   // ── 通用列表弹窗（查看全部） ──
   const _lmClose = $('#listModalClose');
   if (_lmClose) _lmClose.addEventListener('click', () => { $('#listModal').hidden = true; });
@@ -4288,6 +4400,7 @@ async function boot() {
 
   applySettings();
   refreshThemeButtons();
+  refreshLookupModeUI();
   renderCreate();
   renderLibrary();
   renderTestSetup();

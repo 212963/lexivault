@@ -1145,14 +1145,44 @@ label:first-of-type{margin-top:0}
 /* ═══════════════════════════════════════════════════════════════
    LexiVault Mobile · 代码地图
    ───────────────────────────────────────────────────────────────
-   §1   工具函数           $ / $$ / uid / esc / toast / timeAgo
-   §2   存储层             DB（words / images / articles）
-   §3   设置               DEFAULT_SETTINGS
-   §4   全局状态           S
-   §5   路由               VIEW_META / switchView
-   §6   设置弹窗           openSettings / closeSettings
-   §7   事件绑定           bindEvents
-   §8   启动               boot
+   §1     工具函数          $ / $$ / uid / esc / toast / timeAgo / hexToRgb / download
+   §2     存储层            DB（words / images / articles）
+   §2.5   语音              Speech（纯 Google TTS，本地引擎，零延迟）
+   §2.6   数据统计          Stats（本地记录流量 / 调用次数，按日 / 月）
+   §3     主题与设置        THEMES / DEFAULT_SETTINGS / applySettings / loadSettings
+   §4     全局状态          S（words / images / articles / settings / urls）
+                           imgURL()：imageId → objectURL 缓存
+   §5     路由              VIEW_META / switchView
+   §6     设置弹窗          openSettings / closeSettings / refreshStageButtons
+                           openStats / renderStatsHTML（统计面板）
+   §6.5   新建单词          POS_LIST / C / renderCreate / saveCreateWord
+                           compressImage / addImagesFromFiles
+   §6.6   测试              T / retentionOf / gradeWord / scopeWords
+                           renderTestSetup / startTest / renderQuestion
+                           submitSpell / finishQuestion / showLearnCard
+                           endRound / showRoundBreak / showResult
+                           ★ 流程：逐环节过一遍 → 错词用 reverse 循环重测到全对
+                           ★ 测试范围 scope 值：today / yesterday / last3days
+                                                  week / month / all / due
+                           ★ 测试环节开关：S.settings.testStages
+                                            { choice, spell, reverse }
+   §6.7   查词              renderLookup / openLookupDetail
+                           fetchWordInfoFromApiHz / parseApiHzMeanings（走接口盒子）
+   §6.74  智能配图          openSmartImagePicker（Pixabay / LoremFlickr）
+   §6.73  总词库            renderLibrary / openLibraryDetail / deleteWordFromLibrary
+   §6.75  WebDAV 客户端     request / getJSON / putJSON / getBlob / putBlob
+                           testConnection / ensureDir（坚果云）
+   §6.8   导出 / 导入       exportData / mergeWord / mergeSrs / importPack
+   §6.85  云同步            syncNow / pullMissingImages / clearAllData
+   §7     事件绑定          bindEvents（含：刷新按钮、测试环节开关、主题切换）
+   §8     启动              boot + Service Worker 注册
+   ───────────────────────────────────────────────────────────────
+   ★ 外部依赖（全部走 Tampermonkey 代理，见脚本 __LEXIVAULT_DAV_PROXY__）
+     - 坚果云 WebDAV：数据同步 + 图片上传
+     - 接口盒子：英查中词典（音标 + 词性 + 释义）
+     - Pixabay：智能配图
+   ★ 语音发音：Google TTS（本地，不依赖任何 API）
+   ★ 数据契约：schemaVersion 2，与 PC 版一致；updatedAt 为冲突判定键
    ═══════════════════════════════════════════════════════════════ */
 
 const APP_VERSION = '0.1.0';
@@ -2254,7 +2284,7 @@ function showResult() {
       <div class="result-stat">
         <div class="pct">${acc}%</div>
         <div class="sub">首轮正确 ${T.firstRoundCorrect} / ${total} 题</div>
-        <div class="sub" style="margin-top:4px;font-size:12.5px">共 ${words.length} 个单词 · 全部通过错题重测 ✓</div>
+        <div class="sub" style="margin-top:4px;font-size:12.5px">共 ${words.length} 个单词 · 全部通过 ✓</div>
       </div>
     </div>
     <div class="card">

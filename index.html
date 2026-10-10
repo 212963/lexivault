@@ -498,6 +498,55 @@ label:first-of-type{margin-top:0}
 .lkd-ret .rd{width:7px;height:7px;border-radius:50%}
 .lkd-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 
+/* ═══════════ 词组 / 例句区块 ═══════════ */
+.wc-block{
+  margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid;
+}
+.wc-phrases{
+  background:rgba(var(--accent-rgb),.06);
+  border-color:rgba(var(--accent-rgb),.18);
+}
+.wc-sentences{
+  background:rgba(var(--accent2-rgb),.07);
+  border-color:rgba(var(--accent2-rgb),.22);
+}
+.wc-title{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:12.5px;font-weight:700;letter-spacing:.3px;margin-bottom:8px;
+}
+.wc-phrases .wc-title{color:var(--accent)}
+.wc-sentences .wc-title{color:var(--accent2)}
+.wc-more{
+  font-size:11.5px;font-weight:700;color:var(--accent);
+  background:rgba(var(--accent-rgb),.12);border:none;
+  padding:5px 11px;cursor:pointer;font-family:inherit;border-radius:99px;
+  transition:all .2s var(--ease);white-space:nowrap;
+}
+.wc-more:active{transform:scale(.95);background:rgba(var(--accent-rgb),.24)}
+.wc-sentences .wc-more{color:var(--accent2);background:rgba(var(--accent2-rgb),.16)}
+.wc-sentences .wc-more:active{background:rgba(var(--accent2-rgb),.3)}
+.wc-phrase-list{display:flex;flex-direction:column}
+.wc-phrase-line{
+  font-size:13px;line-height:1.6;color:var(--text);padding:5px 0;
+  word-break:break-word;
+}
+.wc-phrase-line + .wc-phrase-line{border-top:1px dashed var(--border)}
+.sent-row{padding:7px 0}
+.sent-row + .sent-row{border-top:1px dashed var(--border)}
+.sent-en{
+  font-size:13.5px;font-style:italic;line-height:1.55;
+  color:var(--text);word-break:break-word;
+}
+.sent-cn{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.55}
+.list-row{
+  padding:11px 14px;border-radius:11px;
+  background:rgba(var(--text-rgb),.04);
+  border:1px solid var(--border);
+  font-size:13.5px;line-height:1.6;
+  margin-bottom:8px;word-break:break-word;
+}
+.list-row:last-child{margin-bottom:0}
+
 /* ═══════════ 设置页 ═══════════ */
 .set-section{margin-bottom:22px}
 .theme-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -1140,6 +1189,16 @@ label:first-of-type{margin-top:0}
   <div class="modal-box">
     <div class="close-bar"></div>
     <div id="lookupDetailBody"></div>
+  </div>
+</div>
+
+<!-- ═══════ 通用列表弹窗（查看全部词组 / 例句） ═══════ -->
+<div id="listModal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="close-bar"></div>
+    <h3 id="listModalTitle">列表</h3>
+    <div id="listModalBody"></div>
+    <button class="btn block lg" id="listModalClose" style="margin-top:16px">关闭</button>
   </div>
 </div>
 
@@ -1974,7 +2033,93 @@ function meaningsToString(arr) {
   return (arr || []).filter(m => m && m.text && m.text.trim())
     .map(m => (m.pos ? `[${m.pos}] ` : '') + m.text.trim())
     .join('；');
-}function shuffle(arr) {
+}
+/* 判断某条 meaning 是否为词组（pos 是 phr. / phrase 等） */
+function isPhraseMeaning(m) {
+  if (!m || !m.pos) return false;
+  const p = String(m.pos).toLowerCase().replace(/\.$/, '');
+  return p === 'phr' || p === 'phrase' || p === 'phrases';
+}
+/* 从 meanings 里挑出词组，用分号拆成字符串数组 */
+function splitWordPhrases(word) {
+  const arr = [];
+  for (const m of getMeanings(word)) {
+    if (!isPhraseMeaning(m)) continue;
+    String(m.text || '').split(/[；;]/).forEach(s => {
+      const t = s.trim();
+      if (t) arr.push(t);
+    });
+  }
+  return arr;
+}
+/* 把 sentence 多行文本拆成例句数组 */
+function splitWordSentences(word) {
+  if (!word || !word.sentence) return [];
+  return String(word.sentence).split('\n').map(s => s.trim()).filter(Boolean);
+}
+/* 把"英文 中文"一行拆成 {en, cn} */
+function splitSentenceLine(line) {
+  const s = String(line || '').trim();
+  const m = s.match(/^([\s\S]*?)([\u4e00-\u9fa5][\s\S]*)$/);
+  if (m) return { en: m[1].trim(), cn: m[2].trim() };
+  return { en: s, cn: '' };
+}
+/* 生成词组区块 HTML；limit <= 0 表示全部显示 */
+function renderPhrasesBlock(phrases, limit, moreBtnId) {
+  if (!phrases || !phrases.length) return '';
+  const showAll = limit <= 0 || phrases.length <= limit;
+  const list = showAll ? phrases : phrases.slice(0, limit);
+  const moreBtn = showAll ? '' :
+    `<button type="button" class="wc-more" id="${moreBtnId}">查看全部 ${phrases.length} ›</button>`;
+  return `<div class="wc-block wc-phrases">
+      <div class="wc-title"><span>📎 词组</span>${moreBtn}</div>
+      <div class="wc-phrase-list">
+        ${list.map(p => `<div class="wc-phrase-line">${esc(p)}</div>`).join('')}
+      </div>
+    </div>`;
+}
+/* 生成例句区块 HTML */
+function renderSentencesBlock(sentences, limit, moreBtnId) {
+  if (!sentences || !sentences.length) return '';
+  const showAll = limit <= 0 || sentences.length <= limit;
+  const list = showAll ? sentences : sentences.slice(0, limit);
+  const moreBtn = showAll ? '' :
+    `<button type="button" class="wc-more" id="${moreBtnId}">查看全部 ${sentences.length} ›</button>`;
+  const rows = list.map(line => {
+    const { en, cn } = splitSentenceLine(line);
+    return `<div class="sent-row">
+      <div class="sent-en">${esc(en)}</div>
+      ${cn ? `<div class="sent-cn">${esc(cn)}</div>` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="wc-block wc-sentences">
+      <div class="wc-title"><span>💬 例句</span>${moreBtn}</div>
+      ${rows}
+    </div>`;
+}
+/* 通用"查看全部"列表弹窗 */
+function openListModal(title, items, type) {
+  if (!items || !items.length) return;
+  const modal = $('#listModal');
+  if (!modal) return;
+  $('#listModalTitle').textContent = title;
+  const body = $('#listModalBody');
+  if (type === 'sentences') {
+    body.innerHTML = items.map(line => {
+      const { en, cn } = splitSentenceLine(line);
+      return `<div class="sent-row">
+        <div class="sent-en">${esc(en)}</div>
+        ${cn ? `<div class="sent-cn">${esc(cn)}</div>` : ''}
+      </div>`;
+    }).join('');
+  } else {
+    body.innerHTML = items.map(p =>
+      `<div class="list-row">${esc(p)}</div>`
+    ).join('');
+  }
+  modal.hidden = false;
+}
+function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -2223,13 +2368,19 @@ function showLearnCard(word, ok) {
     progressText = `错题重测 · 第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · 学习一下`;
   }
 
-  const meaningHtml = meanings.length
-    ? meanings.map(m => `
+  const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
+  const meaningHtml = plainMeanings.length
+    ? plainMeanings.map(m => `
         <div class="lc-mean-row">
           ${m.pos ? `<span class="lc-pos">${esc(m.pos)}</span>` : ''}
           <span class="lc-text">${esc(m.text)}</span>
         </div>`).join('')
     : '<div class="lc-mean-row"><span class="lc-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
+
+  const phrases = splitWordPhrases(w);
+  const sentences = splitWordSentences(w);
+  const phrasesBlock = renderPhrasesBlock(phrases, 3, 'lcMorePhrases');
+  const sentencesBlock = renderSentencesBlock(sentences, 1, 'lcMoreSentences');
 
   $('#testRun').innerHTML = `
     <div class="quiz-progress">${progressText}</div>
@@ -2239,6 +2390,8 @@ function showLearnCard(word, ok) {
       <div class="lc-word">${esc(w.text)}</div>
       ${w.phonetic ? `<div class="lc-phonetic">${esc(w.phonetic)}</div>` : ''}
       <div class="lc-meanings">${meaningHtml}</div>
+      ${phrasesBlock}
+      ${sentencesBlock}
       <button class="btn primary block lg" id="lcNextBtn" style="margin-top:14px">下一题</button>
     </div>`;
 
@@ -2261,6 +2414,10 @@ function showLearnCard(word, ok) {
     if (e.key === 'Enter') { e.preventDefault(); goNext(); }
   };
   document.addEventListener('keydown', _learnEnterHandler);
+  const _lcMP = $('#lcMorePhrases');
+  if (_lcMP) _lcMP.onclick = () => openListModal('全部词组', phrases, 'phrases');
+  const _lcMS = $('#lcMoreSentences');
+  if (_lcMS) _lcMS.onclick = () => openListModal('全部例句', sentences, 'sentences');
   $('#lcNextBtn').onclick = goNext;
   setTimeout(() => { $('#lcNextBtn').focus(); }, 60);
 }
@@ -2463,13 +2620,19 @@ function openLookupDetail(w) {
   const rc = retColor(r);
   const rTxt = r === null ? '未复习' : Math.round(r * 100) + '%';
 
-  const meaningsHtml = meanings.length
-    ? meanings.map(m => `
+  const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
+  const meaningsHtml = plainMeanings.length
+    ? plainMeanings.map(m => `
         <div class="lkd-mean-row">
           ${m.pos ? `<span class="lkd-pos">${esc(m.pos)}</span>` : ''}
           <span class="lkd-text">${esc(m.text)}</span>
         </div>`).join('')
     : '<div class="lkd-mean-row"><span class="lkd-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
+
+  const phrases = splitWordPhrases(w);
+  const sentences = splitWordSentences(w);
+  const phrasesBlock = renderPhrasesBlock(phrases, 3, 'lkdMorePhrases');
+  const sentencesBlock = renderSentencesBlock(sentences, 1, 'lkdMoreSentences');
 
   $('#lookupDetailBody').innerHTML = `
     ${url ? `<img class="lkd-img" src="${url}" alt="">` : ''}
@@ -2483,12 +2646,18 @@ function openLookupDetail(w) {
         记忆保持 ${rTxt}
       </span>
     </div>
+    ${phrasesBlock}
+    ${sentencesBlock}
     <div class="lkd-actions">
       <button class="btn" id="lkdSpeak">🔊 发音</button>
       <button class="btn" id="lkdClose">关闭</button>
     </div>`;
 
   modal.hidden = false;
+  const _lkMP = $('#lkdMorePhrases');
+  if (_lkMP) _lkMP.onclick = () => openListModal('全部词组', phrases, 'phrases');
+  const _lkMS = $('#lkdMoreSentences');
+  if (_lkMS) _lkMS.onclick = () => openListModal('全部例句', sentences, 'sentences');
   $('#lkdSpeak').onclick = () => Speech.speak(w.text);
   $('#lkdClose').onclick = () => { modal.hidden = true; };
 }
@@ -2867,13 +3036,19 @@ function openLibraryDetail(w) {
   const r = retentionOf(w);
   const rc = retColor(r);
   const rTxt = r === null ? '未复习' : Math.round(r * 100) + '%';
-  const meaningsHtml = meanings.length
-    ? meanings.map(m => `
+  const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
+  const meaningsHtml = plainMeanings.length
+    ? plainMeanings.map(m => `
         <div class="lkd-mean-row">
           ${m.pos ? `<span class="lkd-pos">${esc(m.pos)}</span>` : ''}
           <span class="lkd-text">${esc(m.text)}</span>
         </div>`).join('')
     : '<div class="lkd-mean-row"><span class="lkd-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
+
+  const phrases = splitWordPhrases(w);
+  const sentences = splitWordSentences(w);
+  const phrasesBlock = renderPhrasesBlock(phrases, 3, 'wdMorePhrases');
+  const sentencesBlock = renderSentencesBlock(sentences, 1, 'wdMoreSentences');
 
   $('#wordDetailBody').innerHTML = `
     ${url ? `<img class="lkd-img" src="${url}" alt="">` : ''}
@@ -2887,7 +3062,8 @@ function openLibraryDetail(w) {
         记忆保持 ${rTxt}
       </span>
     </div>
-    ${w.sentence ? `<div style="margin-top:12px;padding:11px 14px;border-radius:11px;background:rgba(var(--accent2-rgb),.08);border-left:3px solid var(--accent2);font-size:14px;font-style:italic;line-height:1.6;color:var(--text)">${esc(w.sentence)}</div>` : ''}
+    ${phrasesBlock}
+    ${sentencesBlock}
     <div class="lkd-actions" style="margin-top:14px;grid-template-columns:1fr 1fr 1fr">
       <button class="btn" id="wdSpeak">🔊 发音</button>
       <button class="btn" id="wdEdit">✏️ 编辑</button>
@@ -2896,6 +3072,10 @@ function openLibraryDetail(w) {
     <button class="btn block" id="wdClose" style="margin-top:10px">关闭</button>`;
 
   modal.hidden = false;
+  const _wdMP = $('#wdMorePhrases');
+  if (_wdMP) _wdMP.onclick = () => openListModal('全部词组', phrases, 'phrases');
+  const _wdMS = $('#wdMoreSentences');
+  if (_wdMS) _wdMS.onclick = () => openListModal('全部例句', sentences, 'sentences');
   $('#wdSpeak').onclick = () => Speech.speak(w.text);
   $('#wdClose').onclick = () => { modal.hidden = true; };
   $('#wdEdit').onclick = () => openEditWord(w);
@@ -3878,6 +4058,10 @@ function bindEvents() {
       setTimeout(() => { location.replace(url); }, 260);
     });
   }
+
+  // ── 通用列表弹窗（查看全部） ──
+  const _lmClose = $('#listModalClose');
+  if (_lmClose) _lmClose.addEventListener('click', () => { $('#listModal').hidden = true; });
 
   // ── 数据统计 ──
   $('#btnStats').addEventListener('click', openStats);

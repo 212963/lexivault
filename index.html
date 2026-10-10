@@ -2040,12 +2040,15 @@ function isPhraseMeaning(m) {
   const p = String(m.pos).toLowerCase().replace(/\.$/, '');
   return p === 'phr' || p === 'phrase' || p === 'phrases';
 }
-/* 从 meanings 里挑出词组，用分号拆成字符串数组 */
+/* 从 meanings 里挑出词组，切分成字符串数组
+   ⚠ 词组之间是「；」，但词组内部的多释义也用「；」（如 "on high: 在高处；在天空"）
+   区分方式：只有「；」后面紧跟「英文单词 + 冒号」的才是新词组 */
 function splitWordPhrases(word) {
   const arr = [];
+  const SPLIT_RE = /[；;](?=[A-Za-z][A-Za-z\s\-'’]{0,40}[:：])/;
   for (const m of getMeanings(word)) {
     if (!isPhraseMeaning(m)) continue;
-    String(m.text || '').split(/[；;]/).forEach(s => {
+    String(m.text || '').split(SPLIT_RE).forEach(s => {
       const t = s.trim();
       if (t) arr.push(t);
     });

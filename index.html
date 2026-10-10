@@ -797,6 +797,12 @@ label:first-of-type{margin-top:0}
       <label>分类（可选）</label>
       <input class="input" id="cwCategory" placeholder="例如：雅思核心"
              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+      <label>例句（可选）</label>
+      <textarea class="input" id="cwSentence" rows="3"
+                placeholder="每行一条，例如：&#10;He has the ability to solve problems. 他有能力解决问题。"
+                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                style="resize:vertical;min-height:72px;font-family:inherit;line-height:1.5"></textarea>
     </div>
 
     <div class="card">
@@ -1369,6 +1375,46 @@ const Speech = (() => {
 })();
 
 /* ══════════════════════════════════════════════
+   §2.55  本地词典（CET4，离线，首查加载）
+   ══════════════════════════════════════════════ */
+const Dict = (() => {
+  let _map = null;
+  let _loading = null;
+
+  async function load() {
+    if (_map) return _map;
+    if (_loading) return _loading;
+    _loading = fetch('cet4.json')
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(list => {
+        _map = new Map();
+        for (const w of list) {
+          if (w && w.word) _map.set(String(w.word).toLowerCase(), w);
+        }
+        console.log('[LexiVault] 本地词典已加载，共', _map.size, '词');
+        return _map;
+      })
+      .catch(e => {
+        console.warn('[LexiVault] 本地词典加载失败', e);
+        _map = new Map();
+        return _map;
+      });
+    return _loading;
+  }
+
+  async function lookup(word) {
+    if (!_map) await load();
+    if (!word) return null;
+    return _map.get(String(word).trim().toLowerCase()) || null;
+  }
+
+  return { load, lookup };
+})();
+
+/* ══════════════════════════════════════════════
    §2.6  数据统计（本地记录调用量 / 流量）
    ══════════════════════════════════════════════ */
 const STATS_KEY = 'lexivault.mobile.stats';
@@ -1735,6 +1781,7 @@ const C = {
   meanings: [{ pos: '', text: '' }],
   phonetic: '',
   category: '',
+  sentence: '',
   imageIds: [],
 };
 
@@ -1857,7 +1904,7 @@ async function saveCreateWord() {
     phonetic: C.phonetic.trim(),
     category: C.category.trim() || '未分类',
     synonym: '',
-    sentence: '',
+    sentence: C.sentence.trim(),
     imageIds: [...C.imageIds],
     createdAt: ts,
     updatedAt: ts,   // ★ 同步用，从手机版开始必须有
@@ -1870,10 +1917,11 @@ async function saveCreateWord() {
 
   // 重置表单
   C.word = ''; C.meanings = [{ pos: '', text: '' }];
-  C.phonetic = ''; C.category = ''; C.imageIds = [];
+  C.phonetic = ''; C.category = ''; C.sentence = ''; C.imageIds = [];
   $('#cwText').value = '';
   $('#cwPhonetic').value = '';
   $('#cwCategory').value = '';
+  $('#cwSentence').value = '';
   renderCreate();
 }
 
@@ -2447,6 +2495,24 @@ function openLookupDetail(w) {
 
 /* ── 接口盒子词典（英查中，带音标和词性）── */
 async function fetchWordInfoFromApiHz(word) {
+  // ★ 先查本地词典
+  try {
+    const local = await Dict.lookup(word);
+    if (local) {
+      console.log('[LexiVault] 本地词典命中:', word);
+      return {
+        phonetic: local.phonetic || '',
+        meanings: local.meanings || [],
+        phrases: local.phrases || [],
+        sentences: local.sentences || [],
+        source: 'local',
+      };
+    }
+  } catch (e) {
+    console.warn('[LexiVault] 本地词典查询异常', e);
+  }
+
+  // ★ 本地未命中，走接口盒子
   const id = S.apiHz.id;
   const key = S.apiHz.key;
   if (!id || !key) return null;
@@ -2508,18 +2574,46 @@ function parseApiHzMeanings(raw) {
 /* 把 fetchWordInfo 的结果填进新建表单 */
 function fillWordInfo(info) {
   if (!info) return;
+
+  // 1) 释义
   if (info.meanings && info.meanings.length) {
     C.meanings = info.meanings.map(m => ({ pos: m.pos || '', text: m.text }));
+    // ★ 把词组拼进最后一条释义
+    if (info.phrases && info.phrases.length) {
+      const phraseText = info.phrases
+        .filter(p => p && p.phrase && p.translation)
+        .map(p => `${p.phrase}: ${p.translation}`)
+        .join('；');
+      if (phraseText) C.meanings.push({ pos: 'phr.', text: phraseText });
+    }
     renderCreateMeanings();
   } else if (info.meaning) {
     C.meanings = [{ pos: info.pos || '', text: info.meaning }];
     renderCreateMeanings();
   }
+
+  // 2) 音标
   if (info.phonetic) {
     let ph = info.phonetic;
     if (!/^[\/\[ˈˌ]/.test(ph)) ph = '/' + ph + '/';
     $('#cwPhonetic').value = ph;
     C.phonetic = ph;
+  }
+
+  // 3) 例句（每行一条："英文 中文"）
+  if (info.sentences && info.sentences.length) {
+    const sentText = info.sentences
+      .filter(s => s && s.sentence)
+      .map(s => {
+        const en = String(s.sentence).trim();
+        const cn = s.translation ? String(s.translation).trim() : '';
+        return cn ? `${en}  ${cn}` : en;
+      })
+      .join('\n');
+    if (sentText) {
+      $('#cwSentence').value = sentText;
+      C.sentence = sentText;
+    }
   }
 }
 
@@ -3514,6 +3608,7 @@ function bindEvents() {
   $('#cwText').addEventListener('input', e => { C.word = e.target.value; });
   $('#cwPhonetic').addEventListener('input', e => { C.phonetic = e.target.value; });
   $('#cwCategory').addEventListener('input', e => { C.category = e.target.value; });
+  $('#cwSentence').addEventListener('input', e => { C.sentence = e.target.value; });
 
   $('#btnAddMeaning').addEventListener('click', () => {
     C.meanings.push({ pos: '', text: '' });
@@ -3568,9 +3663,6 @@ function bindEvents() {
     if (!w) return toast('请先输入英文单词', 'warn');
     if (/[\u4e00-\u9fa5]/.test(w)) {
       return toast('请输入英文单词', 'warn');
-    }
-    if (!S.apiHz.id || !S.apiHz.key) {
-      return toast('请先到设置里配置接口盒子词典', 'warn');
     }
     toast('正在查询…');
     try {

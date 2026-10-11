@@ -1545,7 +1545,7 @@ const Dict = (() => {
   async function load() {
     if (_map) return _map;
     if (_loading) return _loading;
-    _loading = fetch('cet4.json')
+    _loading = fetch('cet4.json?_=' + Date.now(), { cache: 'no-store' })
       .then(r => {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
@@ -1560,15 +1560,18 @@ const Dict = (() => {
       })
       .catch(e => {
         console.warn('[LexiVault] 本地词典加载失败', e);
-        _map = new Map();
-        return _map;
+        _loading = null;   // ★ 清掉，允许下次重试
+        _map = null;
+        throw e;
       });
     return _loading;
   }
 
   async function lookup(word) {
-    if (!_map) await load();
-    if (!word) return null;
+    if (!_map) {
+      try { await load(); } catch (e) { return null; }   // ★ 加载失败就跳过本地，走 API
+    }
+    if (!word || !_map) return null;
     return _map.get(String(word).trim().toLowerCase()) || null;
   }
 

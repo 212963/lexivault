@@ -2240,14 +2240,35 @@ function splitWordPhrases(word) {
   }
   return arr;
 }
-/* 把 sentence 多行文本拆成例句数组
-   兼容两种格式：
-     ① "英文 中文"（一行）
-     ② "英文\n中文"（智谱生成，两行一条）
-   多个例句混排也能正确处理 */
+/* 把词的例句拆成"每句一行英文 + 中文"的字符串数组
+   兼容两种数据格式：
+     ① PC 端格式：sentence 是英文，sentenceZh 是中文，按行索引一一配对
+     ② 手机端旧格式：sentence 里 "英文\n中文" 或 "英文 中文"
+   输出统一为 "英文  中文" 拼接的单行字符串 */
 function splitWordSentences(word) {
-  if (!word || !word.sentence) return [];
-  const lines = String(word.sentence).split('\n').map(s => s.trim()).filter(Boolean);
+  if (!word) return [];
+  const enRaw = String(word.sentence || '').trim();
+  const zhRaw = String(word.sentenceZh || '').trim();
+
+  // ① PC 端格式：sentenceZh 存在 → 按行配对
+  if (zhRaw) {
+    const enLines = enRaw ? enRaw.split('\n').map(s => s.trim()).filter(Boolean) : [];
+    const zhLines = zhRaw.split('\n').map(s => s.trim()).filter(Boolean);
+    const n = Math.max(enLines.length, zhLines.length);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const en = enLines[i] || '';
+      const cn = zhLines[i] || '';
+      if (!en && !cn) continue;
+      if (en && cn) out.push(en + '  ' + cn);
+      else out.push(en || cn);
+    }
+    return out;
+  }
+
+  // ② 手机端旧格式
+  if (!enRaw) return [];
+  const lines = enRaw.split('\n').map(s => s.trim()).filter(Boolean);
   const out = [];
   let i = 0;
   while (i < lines.length) {

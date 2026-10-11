@@ -580,6 +580,21 @@ label:first-of-type{margin-top:0}
   background:rgba(var(--accent-rgb),.14);
 }
 
+/* ═══════════ 测试提示例句 ═══════════ */
+.hint-box{
+  margin-top:12px;padding:11px 13px;border-radius:11px;
+  background:rgba(var(--accent2-rgb),.08);
+  border:1px solid rgba(var(--accent2-rgb),.22);
+  animation:fadeUp .25s var(--ease);
+}
+.hint-en{
+  font-size:13.5px;font-style:italic;line-height:1.55;
+  color:var(--text);word-break:break-word;
+}
+.hint-cn{
+  font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.55;
+}
+
 /* ═══════════ 设置页 ═══════════ */
 .set-section{margin-bottom:22px}
 .theme-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -888,8 +903,12 @@ label:first-of-type{margin-top:0}
              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
 
       <label>例句（可选）</label>
+      <button type="button" class="btn block" id="btnGenSentence"
+              style="margin-bottom:8px;font-size:13.5px;min-height:42px;border-style:dashed">
+        🤖 用图片生成例句
+      </button>
       <textarea class="input" id="cwSentence" rows="3"
-                placeholder="每行一条，例如：&#10;He has the ability to solve problems. 他有能力解决问题。"
+                placeholder="英文句子&#10;中文翻译（智谱生成后可手动修改）"
                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                 style="resize:vertical;min-height:72px;font-family:inherit;line-height:1.5"></textarea>
     </div>
@@ -1162,6 +1181,24 @@ label:first-of-type{margin-top:0}
         <button class="btn primary" id="apiHzSave">💾 保存</button>
       </div>
       <div class="sync-status" id="apiHzStatus">未配置</div>
+    </div>
+
+    <!-- 智谱 AI 例句生成 -->
+    <div class="set-section">
+      <div class="set-title">🤖 智谱 AI（例句生成）</div>
+      <div class="sync-hint">
+        去 <b>open.bigmodel.cn</b> 注册后，在「API Keys」页面创建一个 Key，粘贴到下面。
+        手机版用它 <b>看图生成例句</b>，模型为 <b>glm-4v-flash</b>（免费）。
+      </div>
+      <div class="sync-field">
+        <label>API Key</label>
+        <input id="zhipuKey" type="password" placeholder="粘贴智谱 API Key" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="sync-actions" style="margin-top:10px">
+        <button class="btn" id="zhipuTest">🔍 测试</button>
+        <button class="btn primary" id="zhipuSave">💾 保存</button>
+      </div>
+      <div class="sync-status" id="zhipuStatus">未配置</div>
     </div>
 
     <!-- 智能配图 -->
@@ -1599,6 +1636,84 @@ const Stats = (() => {
 })();
 
 /* ══════════════════════════════════════════════
+   §2.7  智谱 AI（看图生成例句）
+   ══════════════════════════════════════════════ */
+const Zhipu = (() => {
+  const MODEL = 'glm-4v-flash';
+
+  function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  /* 把返回文本拆成 { en, cn }
+     期望格式：第一行英文，第二行中文。格式不对时尽量兜底。 */
+  function parseResult(raw) {
+    const text = String(raw || '').replace(/\r/g, '').trim();
+    const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
+    let en = '', cn = '';
+    for (const line of lines) {
+      const hasCN = /[\u4e00-\u9fa5]/.test(line);
+      if (!en && !hasCN) { en = line; continue; }
+      if (en && !cn && hasCN) { cn = line; continue; }
+      // 英文和中文挤在同一行 → 用第一个中文字符切开
+      if (!en && hasCN) {
+        const i = line.search(/[\u4e00-\u9fa5]/);
+        if (i > 0) { en = line.slice(0, i).trim(); cn = line.slice(i).trim(); }
+      }
+    }
+    if (!en) return { en: text, cn: '' };
+    return { en, cn };
+  }
+
+  async function generateSentence(word, imageBlob) {
+    const key = S.zhipu.key;
+    if (!key) { const e = new Error('未配置智谱 API Key'); e.code = 'NO_KEY'; throw e; }
+    if (!word) { const e = new Error('缺少单词'); e.code = 'NO_WORD'; throw e; }
+    if (!imageBlob) { const e = new Error('缺少图片'); e.code = 'NO_IMG'; throw e; }
+    if (typeof window.__LEXIVAULT_ZHIPU__ !== 'function') {
+      const e = new Error('篡改猴代理未加载'); e.code = 'NO_PROXY'; throw e;
+    }
+
+    const dataUrl = await blobToDataURL(imageBlob);
+    const prompt = `你是英语例句生成助手。请看这张图片，用英文单词"${word}"造一个句子。要求：
+1. 英文句子必须包含"${word}"（原形或语法变形都可）
+2. 句子要贴合图片的内容
+3. 只输出两行，不要任何其他文字、标点引导、Markdown：
+第一行：英文句子
+第二行：对应中文翻译`;
+
+    const body = {
+      model: MODEL,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: dataUrl } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    };
+
+    const resp = await window.__LEXIVAULT_ZHIPU__(key, body);
+    if (!resp.ok) {
+      let msg = '';
+      try { msg = await resp.text(); } catch (err) {}
+      throw new Error(`API ${resp.status}: ${String(msg).slice(0, 120)}`);
+    }
+    const data = await resp.json();
+    const content = (data && data.choices && data.choices[0] &&
+                     data.choices[0].message && data.choices[0].message.content) || '';
+    return parseResult(content);
+  }
+
+  return { generateSentence };
+})();
+
+/* ══════════════════════════════════════════════
    §3  设置（手机版精简：只保留必要项）
    ══════════════════════════════════════════════ */
 const THEMES = {
@@ -1715,6 +1830,11 @@ const S = {
   apiHz: {
     get id()  { try { return localStorage.getItem('lexivault.mobile.apiHz.id') || ''; } catch (e) { return ''; } },
     get key() { try { return localStorage.getItem('lexivault.mobile.apiHz.key') || ''; } catch (e) { return ''; } },
+  },
+
+  // 智谱 AI（看图生成例句）
+  zhipu: {
+    get key() { try { return localStorage.getItem('lexivault.mobile.zhipu.key') || ''; } catch (e) { return ''; } },
   },
 
   // 总词库筛选状态
@@ -2120,10 +2240,30 @@ function splitWordPhrases(word) {
   }
   return arr;
 }
-/* 把 sentence 多行文本拆成例句数组 */
+/* 把 sentence 多行文本拆成例句数组
+   兼容两种格式：
+     ① "英文 中文"（一行）
+     ② "英文\n中文"（智谱生成，两行一条）
+   多个例句混排也能正确处理 */
 function splitWordSentences(word) {
   if (!word || !word.sentence) return [];
-  return String(word.sentence).split('\n').map(s => s.trim()).filter(Boolean);
+  const lines = String(word.sentence).split('\n').map(s => s.trim()).filter(Boolean);
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const cur = lines[i];
+    const next = lines[i + 1];
+    const curHasCN = /[\u4e00-\u9fa5]/.test(cur);
+    const nextHasCN = next ? /[\u4e00-\u9fa5]/.test(next) : false;
+    if (!curHasCN && next && nextHasCN) {
+      out.push(cur + '  ' + next);
+      i += 2;
+    } else {
+      out.push(cur);
+      i += 1;
+    }
+  }
+  return out;
 }
 /* 把"英文 中文"一行拆成 {en, cn} */
 function splitSentenceLine(line) {
@@ -2132,6 +2272,29 @@ function splitSentenceLine(line) {
   if (m) return { en: m[1].trim(), cn: m[2].trim() };
   return { en: s, cn: '' };
 }
+/* 测试中「💡 提示」→ 在题目卡里显示"挖空版例句" */
+function showHintSentence(word) {
+  const sentences = splitWordSentences(word);
+  const card = $('.quiz-card');
+  if (!card) return;
+  let box = $('#hintBox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'hintBox';
+    box.className = 'hint-box';
+    card.appendChild(box);
+  }
+  if (!sentences.length) {
+    box.innerHTML = '<div class="hint-en" style="color:var(--muted)">这个词还没有例句</div>';
+    return;
+  }
+  const { en, cn } = splitSentenceLine(sentences[0]);
+  const safe = String(word.text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const blanked = en.replace(new RegExp(safe, 'gi'), '_____');
+  box.innerHTML = `<div class="hint-en">${esc(blanked)}</div>
+    ${cn ? `<div class="hint-cn">${esc(cn)}</div>` : ''}`;
+}
+
 /* 生成词组区块 HTML；limit <= 0 表示全部显示 */
 function renderPhrasesBlock(phrases, limit, moreBtnId) {
   if (!phrases || !phrases.length) return '';
@@ -2296,7 +2459,7 @@ function startTest() {
   $('#testResult').hidden = true;
   renderQuestion();
 }
-function bindSpellInput(word) {
+function bindSpellInput(word, stage) {
   const inp = $('#spellInput');
   setTimeout(() => {
     inp.focus();
@@ -2306,10 +2469,17 @@ function bindSpellInput(word) {
     if (e.key === 'Enter') { e.preventDefault(); submitSpell(); }
   });
   $('#btnSubmitSpell').onclick = submitSpell;
-  $('#btnHint').onclick = () => {
-    inp.value = word.text[0];
-    inp.focus();
-  };
+  const hintBtn = $('#btnHint');
+  if (hintBtn) {
+    if (stage === 'spell') {
+      hintBtn.onclick = () => showHintSentence(word);
+    } else {
+      hintBtn.onclick = () => {
+        inp.value = word.text[0];
+        inp.focus();
+      };
+    }
+  }
 }
 function renderQuestion() {
   if (T.taskIdx >= T.tasks.length) return endRound();
@@ -2369,7 +2539,7 @@ function renderQuestion() {
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;
-    bindSpellInput(w);
+    bindSpellInput(w, 'spell');
     $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
     // 阶段2：看图拼词 —— 自动播放
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
@@ -2393,7 +2563,7 @@ function renderQuestion() {
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;
-    bindSpellInput(w);
+    bindSpellInput(w, 'reverse');
     $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
     // 阶段3：看中拼英文 —— 不自动播放
   }
@@ -2809,16 +2979,11 @@ function openDictDetail(entry) {
   const phrases = (entry.phrases || [])
     .filter(p => p && p.phrase && p.translation)
     .map(p => `${p.phrase}: ${p.translation}`);
-  const sentences = (entry.sentences || [])
-    .filter(s => s && s.sentence)
-    .map(s => {
-      const en = String(s.sentence).trim();
-      const cn = s.translation ? String(s.translation).trim() : '';
-      return cn ? `${en}  ${cn}` : en;
-    });
+  // ★ cet4 公共例句不再显示（和用户图片无关）
+  const sentences = [];
 
   const phrasesBlock = renderPhrasesBlock(phrases, 3, 'ddMorePhrases');
-  const sentencesBlock = renderSentencesBlock(sentences, 1, 'ddMoreSentences');
+  const sentencesBlock = '';
 
   $('#lookupDetailBody').innerHTML = `
     <div class="lkd-word">${esc(entry.word)}</div>
@@ -2834,8 +2999,6 @@ function openDictDetail(entry) {
   modal.hidden = false;
   const mp = $('#ddMorePhrases');
   if (mp) mp.onclick = () => openListModal('全部词组', phrases, 'phrases');
-  const ms = $('#ddMoreSentences');
-  if (ms) ms.onclick = () => openListModal('全部例句', sentences, 'sentences');
   $('#ddSpeak').onclick = () => Speech.speak(entry.word);
   $('#ddClose').onclick = () => { modal.hidden = true; };
 }
@@ -3081,6 +3244,21 @@ function syncImgApiUI() {
       statusEl.className = 'sync-status';
       statusEl.textContent = '未配置 API Key';
     }
+  }
+}
+
+function syncZhipuUI() {
+  const keyEl = $('#zhipuKey');
+  const statusEl = $('#zhipuStatus');
+  if (!keyEl || !statusEl) return;
+  const key = S.zhipu.key;
+  keyEl.value = key;
+  if (key) {
+    statusEl.className = 'sync-status ok';
+    statusEl.textContent = '✅ 已配置 · 模型 glm-4v-flash';
+  } else {
+    statusEl.className = 'sync-status';
+    statusEl.textContent = '未配置';
   }
 }
 
@@ -4114,6 +4292,73 @@ function bindEvents() {
   const _ahTest = $('#apiHzTest');
   if (_ahTest) _ahTest.onclick = testApiHz;
 
+  // ── 智谱 AI 配置 ──
+  const _zpSave = $('#zhipuSave');
+  if (_zpSave) _zpSave.onclick = () => {
+    const key = ($('#zhipuKey').value || '').trim();
+    try { localStorage.setItem('lexivault.mobile.zhipu.key', key); } catch (e) {}
+    toast(key ? '已保存智谱 Key' : '已清空智谱 Key', 'ok');
+    syncZhipuUI();
+  };
+  const _zpTest = $('#zhipuTest');
+  if (_zpTest) _zpTest.onclick = async () => {
+    const statusEl = $('#zhipuStatus');
+    const key = S.zhipu.key;
+    if (!key) {
+      statusEl.className = 'sync-status warn';
+      statusEl.textContent = '⚠️ 请先保存 API Key';
+      return;
+    }
+    statusEl.className = 'sync-status';
+    statusEl.textContent = '⏳ 正在测试…';
+    try {
+      const testBlob = await (await fetch(
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+      )).blob();
+      const r = await Zhipu.generateSentence('test', testBlob);
+      statusEl.className = 'sync-status ok';
+      statusEl.textContent = '✅ 连接成功 · ' + (r.en ? r.en.slice(0, 40) : '已响应');
+    } catch (e) {
+      statusEl.className = 'sync-status err';
+      statusEl.textContent = '❌ ' + (e.message || e);
+    }
+  };
+
+  // ── 新建单词页：生成例句按钮 ──
+  const _genBtn = $('#btnGenSentence');
+  if (_genBtn) _genBtn.onclick = async () => {
+    const word = ($('#cwText').value || C.word || '').trim();
+    if (!word) return toast('请先输入英文单词', 'warn');
+    if (!C.imageIds.length) return toast('请先绑定一张图片（智谱需要看图）', 'warn');
+    if (!S.zhipu.key) {
+      toast('还没配置智谱 API Key，先去设置里填一下', 'warn');
+      openSettings();
+      return;
+    }
+    const img = S.images.find(i => i.id === C.imageIds[0]);
+    if (!img || !img.blob) return toast('第一张图片读取失败', 'err');
+
+    const oldText = _genBtn.textContent;
+    _genBtn.disabled = true;
+    _genBtn.textContent = '⏳ 正在生成…';
+    try {
+      const r = await Zhipu.generateSentence(word, img.blob);
+      const text = r.cn ? `${r.en}\n${r.cn}` : r.en;
+      $('#cwSentence').value = text;
+      C.sentence = text;
+      toast('例句已生成', 'ok');
+    } catch (e) {
+      if (e.code === 'NO_PROXY') {
+        toast('篡改猴脚本未生效，请刷新页面', 'err');
+      } else {
+        toast('生成失败：' + (e.message || e), 'err');
+      }
+    } finally {
+      _genBtn.disabled = false;
+      _genBtn.textContent = oldText;
+    }
+  };
+
   // ── 智能配图配置 ──
   const _imgSave = $('#imgApiSave');
   if (_imgSave) _imgSave.onclick = () => {
@@ -4407,6 +4652,7 @@ async function boot() {
   renderLookup();
   syncApiHzUI();
   syncImgApiUI();
+  syncZhipuUI();
   switchView('create');
   console.log(`[LexiVault Mobile] v${APP_VERSION} 已启动 · 单词 ${S.words.length} · 图片 ${S.images.length}`);
 }

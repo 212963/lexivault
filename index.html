@@ -2148,7 +2148,8 @@ async function saveCreateWord() {
     phonetic: C.phonetic.trim(),
     category: C.category.trim() || '未分类',
     synonym: '',
-    sentence: C.sentence.trim(),
+    sentence: splitSentenceFieldForSave(C.sentence).sentence,
+    sentenceZh: splitSentenceFieldForSave(C.sentence).sentenceZh,
     imageIds: [...C.imageIds],
     createdAt: ts,
     updatedAt: ts,   // ★ 同步用，从手机版开始必须有
@@ -2314,6 +2315,27 @@ function showHintSentence(word) {
   const blanked = en.replace(new RegExp(safe, 'gi'), '_____');
   box.innerHTML = `<div class="hint-en">${esc(blanked)}</div>
     ${cn ? `<div class="hint-cn">${esc(cn)}</div>` : ''}`;
+}
+
+/* 保存时把"例句框文本"拆成 { sentence, sentenceZh } 两个字段（与 PC 端对齐）
+   输入格式：
+     ① "英文\n中文"（智谱生成，最常用）
+     ② "英文 中文"（一行）
+     ③ 只有英文 / 只有中文
+   规则：每行里第一个中文字符是分界点，左边归英文，右边归中文 */
+function splitSentenceFieldForSave(raw) {
+  const lines = String(raw || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const ens = [], zhs = [];
+  for (const line of lines) {
+    const i = line.search(/[\u4e00-\u9fa5]/);
+    if (i < 0) { ens.push(line); continue; }
+    if (i === 0) { zhs.push(line); continue; }
+    const en = line.slice(0, i).trim();
+    const cn = line.slice(i).trim();
+    if (en) ens.push(en);
+    if (cn) zhs.push(cn);
+  }
+  return { sentence: ens.join('\n'), sentenceZh: zhs.join('\n') };
 }
 
 /* 生成词组区块 HTML；limit <= 0 表示全部显示 */

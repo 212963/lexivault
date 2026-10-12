@@ -339,6 +339,7 @@ label:first-of-type{margin-top:0}
   border-radius:12px;line-height:1.7;
 }
 .rev-meaning i.rev-pos{color:var(--accent);font-style:italic;font-weight:700;font-size:13px;margin-right:5px}
+.hl-word{color:var(--accent);font-weight:800;font-style:normal}
 .quiz-feedback{text-align:center;margin-top:14px;font-size:15px;font-weight:700;min-height:22px}
 .quiz-feedback.ok{color:#3ddc97}
 .quiz-feedback.bad{color:#ff6b81}
@@ -956,8 +957,8 @@ label:first-of-type{margin-top:0}
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px">
         <h3 style="margin:0">单词信息</h3>
-        <button type="button" class="btn" id="btnSaveWordTop"
-                style="padding:0 14px;font-size:13px;min-height:32px;flex-shrink:0">保存</button>
+        <button type="button" class="btn primary" id="btnSaveWordTop"
+                style="padding:0 14px;flex-shrink:0">💾 保存</button>
       </div>
 
       <label>英文单词</label>
@@ -2392,6 +2393,25 @@ function splitSentenceLine(line) {
   if (m) return { en: m[1].trim(), cn: m[2].trim() };
   return { en: s, cn: '' };
 }
+/* 把例句里的目标单词用 .hl-word 包起来（大小写不敏感，只匹配完整单词）
+   返回已经 esc 过的 HTML 片段 */
+function highlightWordInText(text, word) {
+  const raw = String(text || '');
+  const w = String(word || '').trim();
+  if (!raw) return '';
+  if (!w) return esc(raw);
+  const safe = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`\\b${safe}\\b`, 'gi');
+  const parts = [];
+  let last = 0, m;
+  while ((m = re.exec(raw)) !== null) {
+    if (m.index > last) parts.push(esc(raw.slice(last, m.index)));
+    parts.push(`<span class="hl-word">${esc(m[0])}</span>`);
+    last = re.lastIndex;
+  }
+  if (last < raw.length) parts.push(esc(raw.slice(last)));
+  return parts.join('');
+}
 /* 测试中「💡 提示」→ 在题目卡里显示"挖空版例句" */
 function showHintSentence(word, blank = true) {
   const sentences = splitWordSentences(word);
@@ -2696,22 +2716,29 @@ function renderQuestion() {
   const url = imgURL(w.imageIds[0]);
 
   if (stage === 'example') {
-    // 看例句选图：显示英文例句 + 4 图
+    // 看例句选图：显示英文例句（目标词高亮）+ 4 图
     const sents = splitWordSentences(w);
     const firstSent = sents[0] || '';
     const { en } = splitSentenceLine(firstSent);
     const opts = buildOptions(w);
+    const speakTarget = en || w.text;   // 没例句就退化成读单词
     $('#testRun').innerHTML = `
       <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card">
         <div class="rev-meaning" style="font-style:italic;text-align:left;font-size:14px;line-height:1.6;padding:12px 14px">
-          ${en ? esc(en) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
+          ${en ? highlightWordInText(en, w.text) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
+        </div>
+        <div style="text-align:center;margin:10px 0 4px">
+          <button class="btn" id="btnExampleSpeak" style="font-size:13.5px;min-height:38px">🔊 再听一次</button>
         </div>
         <div class="quiz-grid">
           ${opts.map(id => `<button class="quiz-opt" data-img="${id}"><img src="${imgURL(id)}" alt=""></button>`).join('')}
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;
+    // 自动朗读例句（出题 400ms 后）
+    setTimeout(() => { if (!T.answered) Speech.speak(speakTarget); }, 400);
+    $('#btnExampleSpeak').onclick = () => Speech.speak(speakTarget, { force: true });
     $$('.quiz-opt').forEach(b => b.onclick = () => {
       if (T.answered) return;
       const ok = b.dataset.img === w.imageIds[0];

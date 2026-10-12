@@ -878,7 +878,11 @@ label:first-of-type{margin-top:0}
   <section class="view active" id="view-create">
 
     <div class="card">
-      <h3>单词信息</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px">
+        <h3 style="margin:0">单词信息</h3>
+        <button type="button" class="btn" id="btnSaveWordTop"
+                style="padding:0 14px;font-size:13px;min-height:32px;flex-shrink:0">保存</button>
+      </div>
 
       <label>英文单词</label>
       <div style="display:flex;gap:8px;align-items:stretch">
@@ -4266,6 +4270,8 @@ function bindEvents() {
   $('#cameraInput').addEventListener('change', () => handlePhotoPicked($('#cameraInput')));
 
   $('#btnSaveWord').addEventListener('click', saveCreateWord);
+  const _saveTop = $('#btnSaveWordTop');
+  if (_saveTop) _saveTop.addEventListener('click', saveCreateWord);
 
   // ── 总词库 ──
   const _libIn = $('#libSearch');

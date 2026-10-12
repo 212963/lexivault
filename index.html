@@ -595,6 +595,82 @@ label:first-of-type{margin-top:0}
   font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.55;
 }
 
+/* ═══════════ 测试首页 ═══════════ */
+.test-entry{
+  padding:22px 20px;border-radius:var(--radius);
+  background:rgba(var(--surface-rgb),.78);
+  border:1px solid var(--border);
+  margin-bottom:14px;
+  backdrop-filter:blur(var(--blur));
+  -webkit-backdrop-filter:blur(var(--blur));
+  box-shadow:var(--shadow);
+}
+.test-entry-head{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-bottom:8px;
+}
+.test-entry-head h3{
+  font-size:18px;font-weight:700;margin:0;
+}
+.test-entry-count{
+  font-size:34px;font-weight:800;letter-spacing:-1px;
+  line-height:1;font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.test-entry-count small{
+  font-size:14px;font-weight:600;color:var(--muted);
+  -webkit-text-fill-color:var(--muted);
+  margin-left:4px;
+}
+.test-entry.review .test-entry-count{
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  -webkit-background-clip:text;background-clip:text;
+}
+.test-entry-sub{
+  font-size:12.5px;color:var(--muted);
+  margin-bottom:16px;line-height:1.6;
+}
+.test-entry .btn[disabled]{
+  opacity:.42;cursor:not-allowed;
+}
+
+/* ═══════════ 测试滑动特效 ═══════════ */
+@keyframes slideInRight{
+  from{opacity:0;transform:translateX(60px)}
+  to{opacity:1;transform:translateX(0)}
+}
+@keyframes slideOutLeft{
+  from{opacity:1;transform:translateX(0)}
+  to{opacity:0;transform:translateX(-60px)}
+}
+.slide-in{animation:slideInRight .32s var(--ease)}
+.slide-out{animation:slideOutLeft .28s var(--ease) forwards}
+
+/* ═══════════ 复习选择题 ═══════════ */
+.choice-grid{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.choice-opt{
+  padding:14px 16px;border-radius:12px;
+  border:2px solid var(--border);
+  background:rgba(var(--text-rgb),.04);
+  color:var(--text);font-family:inherit;font-size:14.5px;font-weight:600;
+  cursor:pointer;text-align:left;transition:all .2s var(--ease);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  min-height:48px;
+}
+.choice-opt:active{transform:scale(.98)}
+.choice-opt.ok{
+  border-color:#3ddc97;
+  background:rgba(61,220,151,.12);
+  color:#3ddc97;
+}
+.choice-opt.bad{
+  border-color:#ff6b81;
+  background:rgba(255,107,129,.12);
+  color:#ff6b81;
+  opacity:.7;
+}
+
 /* ═══════════ 设置页 ═══════════ */
 .set-section{margin-bottom:22px}
 .theme-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -986,34 +1062,25 @@ label:first-of-type{margin-top:0}
   <!-- 测试 -->
   <section class="view" id="view-test">
 
-    <!-- 设置面板 -->
+    <!-- 测试首页：学习 / 复习 -->
     <div id="testSetup">
-      <div class="card">
-        <h3>测试范围</h3>
-        <div class="chip-row" id="scopeChips">
-          <button class="chip" data-v="yesterday">昨天</button>
-          <button class="chip" data-v="today">今天</button>
-          <button class="chip" data-v="last3days">近 3 天</button>
-          <button class="chip" data-v="week">本周</button>
-          <button class="chip" data-v="month">本月</button>
-          <button class="chip on" data-v="all">全部</button>
-          <button class="chip" data-v="due">待复习</button>
+      <div class="test-entry">
+        <div class="test-entry-head">
+          <h3>📖 学习</h3>
+          <div class="test-entry-count" id="learnCount">0<small>词</small></div>
         </div>
+        <div class="test-entry-sub">还没学过的单词。一次 20 词，小循环过关。</div>
+        <button class="btn primary block lg" id="btnStartLearn" disabled>开始学习</button>
       </div>
 
-      <div class="card">
-        <h3>题目数量</h3>
-        <div class="chip-row" id="countChips">
-          <button class="chip" data-v="5">5 题</button>
-          <button class="chip on" data-v="10">10 题</button>
-          <button class="chip" data-v="20">20 题</button>
-          <button class="chip" data-v="0">全部</button>
+      <div class="test-entry review">
+        <div class="test-entry-head">
+          <h3>🔄 复习</h3>
+          <div class="test-entry-count" id="reviewCount">0<small>词</small></div>
         </div>
+        <div class="test-entry-sub">记忆度低于 80% 的单词，选意思、拼错题。</div>
+        <button class="btn primary block lg" id="btnStartReview" disabled>开始复习</button>
       </div>
-
-      <div class="test-info" id="testInfo"></div>
-
-      <button class="btn primary block lg" id="btnStartTest">开始测试</button>
     </div>
 
     <!-- 测试进行中 -->
@@ -1325,15 +1392,18 @@ label:first-of-type{margin-top:0}
                            openStats / renderStatsHTML（统计面板）
    §6.5   新建单词          POS_LIST / C / renderCreate / saveCreateWord
                            compressImage / addImagesFromFiles
-   §6.6   测试              T / retentionOf / gradeWord / scopeWords
-                           renderTestSetup / startTest / renderQuestion
-                           submitSpell / finishQuestion / showLearnCard
-                           endRound / showRoundBreak / showResult
-                           ★ 流程：逐环节过一遍 → 错词用 reverse 循环重测到全对
-                           ★ 测试范围 scope 值：today / yesterday / last3days
-                                                  week / month / all / due
+   §6.6   测试              T / retentionOf / gradeWord / getMeanings
+                           renderTestHome / startLearn / buildLearnSession
+                           renderQuestion / submitSpell / finishQuestion / showLearnCard
+                           endRound / showRoundBreak / showBatchBreak / showResult
+                           ★ 学习流程：未学习词按 20 词一批
+                             每批按 example → choice → spell → reverse 顺序各过一遍
+                             批内错词用 reverse 重测到全对，再进下一批
                            ★ 测试环节开关：S.settings.testStages
                                             { choice, spell, reverse }
+                                            （example 环节永远开启）
+                           ★ 僵尸代码（待阶段 4 清理）：
+                              scopeWords / startTest / T.scope / T.count
    §6.7   查词              renderLookup / openLookupDetail
                            fetchWordInfoFromApiHz / parseApiHzMeanings（走接口盒子）
    §6.74  智能配图          openSmartImagePicker（Pixabay / LoremFlickr）
@@ -1894,6 +1964,7 @@ function switchView(name) {
   window.scrollTo(0, 0);
   if (name === 'lookup') renderLookup();
   if (name === 'library') renderLibrary();
+  if (name === 'test') renderTestHome();
 }
 
 /* ══════════════════════════════════════════════
@@ -2190,16 +2261,28 @@ async function saveCreateWord() {
    §6.6  测试
    ══════════════════════════════════════════════ */
 const T = {
-  scope: 'all',
-  count: 10,
-  wordPool: [],         // 第一轮抽中的单词（用于结果页）
-  tasks: [],            // 当前轮任务队列 [{word, stage}]
+  mode: 'learn',        // 'learn' | 'review'
+  // 学习：批次
+  batches: [],          // [[w1..w20], [w21..w40], ...]
+  batchIdx: 0,          // 当前批次下标
+  batchBoundaries: [],  // tasks 里每批结束的索引（含边界）
+  // 复习
+  reviewPool: [],       // 待复习词
+  reviewWrong: [],      // 选意思阶段答错的词
+  reviewSpellMode: '',  // 'all' | 'wrong'
+  reviewSpellPool: [],  // 拼写阶段的词表
+  // 通用队列
+  tasks: [],            // [{word, stage}]
   taskIdx: 0,
-  round: 1,             // 1=正常三环节；2+=错题重测
-  roundWrong: [],       // 本轮错词
+  round: 1,             // 1=第一轮；2+=错题重测
+  roundWrong: [],
   firstRoundTotal: 0,
   firstRoundCorrect: 0,
   answered: false,
+  wordPool: [],         // 全部涉及到的词（用于结果页）
+  // 旧的兼容字段（review 阶段会重新赋值）
+  scope: 'all',
+  count: 0,
 };
 
 let _learnEnterHandler = null;
@@ -2311,7 +2394,7 @@ function splitSentenceLine(line) {
   return { en: s, cn: '' };
 }
 /* 测试中「💡 提示」→ 在题目卡里显示"挖空版例句" */
-function showHintSentence(word) {
+function showHintSentence(word, blank = true) {
   const sentences = splitWordSentences(word);
   const card = $('.quiz-card');
   if (!card) return;
@@ -2327,9 +2410,12 @@ function showHintSentence(word) {
     return;
   }
   const { en, cn } = splitSentenceLine(sentences[0]);
-  const safe = String(word.text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const blanked = en.replace(new RegExp(safe, 'gi'), '_____');
-  box.innerHTML = `<div class="hint-en">${esc(blanked)}</div>
+  let text = en;
+  if (blank) {
+    const safe = String(word.text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    text = en.replace(new RegExp(safe, 'gi'), '_____');
+  }
+  box.innerHTML = `<div class="hint-en">${esc(text)}</div>
     ${cn ? `<div class="hint-cn">${esc(cn)}</div>` : ''}`;
 }
 
@@ -2435,42 +2521,30 @@ function scopeWords(scope) {
     return true;
   });
 }
-function renderTestSetup() {
-  const pool = scopeWords(T.scope);
-  const scopeName = {
-    today:'今天导入',
-    yesterday:'昨天导入',
-    last3days:'近 3 天导入',
-    week:'本周导入',
-    month:'本月导入',
-    all:'全部',
-    due:'待复习'
-  }[T.scope];
-  const noImg = S.words.filter(w => !w.imageIds || !w.imageIds.length).length;
+/* （旧 renderTestSetup 已删除：测试首页改为「学习 / 复习」两个入口后不再需要） */
 
-  const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
-  const stageNames = [];
-  if (st.choice)  stageNames.push('看词选图');
-  if (st.spell)   stageNames.push('看图拼词');
-  if (st.reverse) stageNames.push('看中拼英文');
-  const stageCount = stageNames.length;
+/* ── 测试首页：统计未学习 / 待复习 ── */
+function renderTestHome() {
+  // 未学习：从未答过题（srs.lastReview 为空）
+  const unlearned = S.words.filter(w => !w.srs || !w.srs.lastReview);
+  // 待复习：答过题，但记忆度 < 80%
+  const due = S.words.filter(w => {
+    if (!w.srs || !w.srs.lastReview) return false;
+    const r = retentionOf(w);
+    return r !== null && r < 0.8;
+  });
 
-  let html = `当前范围 <b>${scopeName}</b> 共 <b>${pool.length}</b> 个可测单词`;
-  if (stageCount) {
-    const n = T.count === 0 ? pool.length : Math.min(T.count, pool.length);
-    const totalQ = n * stageCount;
-    html += `<br>流程：<b>${stageNames.join(' → ')}</b>`;
-    html += `<br>预计 <b>${totalQ}</b> 题（${n} 词 × ${stageCount} 环节）`;
-    html += `<br><span style="font-size:12px;color:var(--muted)">答错的词最后用「看中文拼英文」重测，直到全对</span>`;
-  } else {
-    html += `<br><span style="color:#ffb43c">⚠ 还没启用任何测试环节，去设置里勾选</span>`;
-  }
-  if (noImg)          html += `<br><span style="font-size:12px;color:var(--muted)">另有 ${noImg} 个单词没绑图，不参与测试</span>`;
-  if (pool.length < 4) html += `<br><span style="color:#ffb43c;font-size:12.5px">⚠ 单词不足 4 个，干扰项会相应减少</span>`;
+  const lc = $('#learnCount');
+  const rc = $('#reviewCount');
+  if (lc) lc.innerHTML = `${unlearned.length}<small>词</small>`;
+  if (rc) rc.innerHTML = `${due.length}<small>词</small>`;
 
-  $('#testInfo').innerHTML = html;
-  $('#btnStartTest').disabled = pool.length === 0 || stageCount === 0;
+  const lBtn = $('#btnStartLearn');
+  const rBtn = $('#btnStartReview');
+  if (lBtn) lBtn.disabled = unlearned.length === 0;
+  if (rBtn) rBtn.disabled = due.length === 0;
 }
+
 function buildOptions(word) {
   const others = S.words.filter(x => x.id !== word.id && x.imageIds && x.imageIds.length);
   const used = new Set(word.imageIds);
@@ -2482,6 +2556,22 @@ function buildOptions(word) {
     if (picks.length === 3) break;
   }
   return shuffle([word.imageIds[0], ...picks]);
+}
+
+/* 复习选择题：1 个正确释义 + 3 个从词库随机抽的干扰释义 */
+function buildReviewOptions(word) {
+  const correctText = meaningsToString(getMeanings(word)) || '（无释义）';
+  const opts = [{ text: correctText, correct: 1 }];
+  const used = new Set([correctText]);
+  for (const o of shuffle(S.words)) {
+    if (o.id === word.id) continue;
+    const t = meaningsToString(getMeanings(o));
+    if (!t || used.has(t)) continue;
+    used.add(t);
+    opts.push({ text: t, correct: 0 });
+    if (opts.length === 4) break;
+  }
+  return shuffle(opts);
 }
 function startTest() {
   const pool = scopeWords(T.scope);
@@ -2518,6 +2608,108 @@ function startTest() {
   $('#testResult').hidden = true;
   renderQuestion();
 }
+
+/* ══════════════════════════════════════════════
+   Learn 流程：未学习词分批学习
+   ══════════════════════════════════════════════ */
+const LEARN_BATCH_SIZE = 20;
+
+/* 按 20 词一组，把未学习词切分 */
+function getUnlearnedWords() {
+  return S.words.filter(w => w.imageIds && w.imageIds.length &&
+    (!w.srs || !w.srs.lastReview));
+}
+
+function buildLearnSession() {
+  const pool = getUnlearnedWords();
+  if (!pool.length) return null;
+
+  const st = Object.assign({ choice: true, spell: true, reverse: true },
+                            S.settings.testStages || {});
+  const stages = ['example'];   // 看例句选图：永远开启（学习环节第一步）
+  if (st.choice)  stages.push('choice');
+  if (st.spell)   stages.push('spell');
+  if (st.reverse) stages.push('reverse');
+
+  // 20 词一组
+  const batches = [];
+  for (let i = 0; i < pool.length; i += LEARN_BATCH_SIZE) {
+    batches.push(pool.slice(i, i + LEARN_BATCH_SIZE));
+  }
+
+  // 展开成扁平任务队列
+  const tasks = [];
+  const boundaries = [];
+  for (const batch of batches) {
+    for (const stage of stages) {
+      for (const word of batch) {
+        tasks.push({ word, stage });
+      }
+    }
+    boundaries.push(tasks.length);   // 每批结束的索引
+  }
+
+  return {
+    batches,
+    tasks,
+    boundaries,
+    wordPool: pool,
+  };
+}
+
+function startLearn() {
+  const session = buildLearnSession();
+  if (!session || !session.tasks.length) {
+    return toast('没有可学习的单词', 'warn');
+  }
+
+  T.mode = 'learn';
+  T.batches = session.batches;
+  T.tasks = session.tasks;
+  T.batchBoundaries = session.boundaries;
+  T.batchIdx = 0;
+  T.taskIdx = 0;
+  T.round = 1;
+  T.roundWrong = [];
+  T.firstRoundTotal = session.tasks.length;
+  T.firstRoundCorrect = 0;
+  T.answered = false;
+  T.wordPool = session.wordPool;
+
+  $('#testSetup').hidden = true;
+  $('#testRun').hidden = false;
+  $('#testResult').hidden = true;
+  renderQuestion();
+}
+
+function startReview() {
+  const pool = S.words.filter(w => {
+    if (!w.srs || !w.srs.lastReview) return false;
+    const r = retentionOf(w);
+    return r !== null && r < 0.8;
+  });
+  if (!pool.length) return toast('没有待复习的单词', 'warn');
+
+  T.mode = 'review';
+  T.reviewPool = pool;
+  T.reviewWrong = [];
+  T.reviewSpellMode = '';
+  T.reviewSpellPool = [];
+  T.tasks = pool.map(w => ({ word: w, stage: 'review-choice' }));
+  T.taskIdx = 0;
+  T.round = 1;
+  T.roundWrong = [];
+  T.firstRoundTotal = T.tasks.length;
+  T.firstRoundCorrect = 0;
+  T.answered = false;
+  T.wordPool = pool;
+
+  $('#testSetup').hidden = true;
+  $('#testRun').hidden = false;
+  $('#testResult').hidden = true;
+  renderQuestion();
+}
+
 function bindSpellInput(word, stage) {
   const inp = $('#spellInput');
   setTimeout(() => {
@@ -2550,7 +2742,7 @@ function renderQuestion() {
 
   let progressText;
   if (T.round === 1) {
-    const stageName = { choice: '看词选图', spell: '看图拼词', reverse: '看中拼英文' }[stage];
+    const stageName = { choice: '看词选图', spell: '看图拼词', reverse: '看中拼英文', 'review-choice': '选中文' }[stage];
     progressText = `第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · ${stageName}`;
   } else {
     progressText = `错题重测 · 第 ${T.taskIdx + 1} / ${T.tasks.length} 题`;
@@ -2558,12 +2750,41 @@ function renderQuestion() {
 
   const url = imgURL(w.imageIds[0]);
 
-  if (stage === 'choice') {
+  if (stage === 'example') {
+    // 看例句选图：显示英文例句 + 4 图
+    const sents = splitWordSentences(w);
+    const firstSent = sents[0] || '';
+    const { en } = splitSentenceLine(firstSent);
     const opts = buildOptions(w);
     $('#testRun').innerHTML = `
       <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card">
+        <div class="rev-meaning" style="font-style:italic;text-align:left;font-size:14px;line-height:1.6;padding:12px 14px">
+          ${en ? esc(en) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
+        </div>
+        <div class="quiz-grid">
+          ${opts.map(id => `<button class="quiz-opt" data-img="${id}"><img src="${imgURL(id)}" alt=""></button>`).join('')}
+        </div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
+    $$('.quiz-opt').forEach(b => b.onclick = () => {
+      if (T.answered) return;
+      const ok = b.dataset.img === w.imageIds[0];
+      b.classList.add(ok ? 'ok' : 'bad');
+      if (!ok) $$('.quiz-opt').forEach(x => { if (x.dataset.img === w.imageIds[0]) x.classList.add('ok'); });
+      finishQuestion(ok, w);
+    });
+
+  } else if (stage === 'choice') {
+    const opts = buildOptions(w);
+    const sents = splitWordSentences(w);
+    const firstSent = sents[0] || '';
+    const { en: hintEn } = splitSentenceLine(firstSent);
+    $('#testRun').innerHTML = `
+      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-card">
         <div class="quiz-word">${esc(w.text)}</div>
+        ${hintEn ? `<div class="rev-meaning" style="font-style:italic;text-align:left;font-size:13px;line-height:1.5;padding:10px 12px;margin-bottom:10px;background:rgba(var(--accent2-rgb),.06);border-color:rgba(var(--accent2-rgb),.18)">${esc(hintEn)}</div>` : ''}
         <div style="text-align:center;margin-bottom:6px">
           <button class="btn" id="btnQuizSpeak" style="font-size:13.5px;min-height:38px">🔊 发音</button>
         </div>
@@ -2625,6 +2846,32 @@ function renderQuestion() {
     bindSpellInput(w, 'reverse');
     $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
     // 阶段3：看中拼英文 —— 不自动播放
+
+  } else if (stage === 'review-choice') {
+    // 复习：看单词 + 图片 → 选 4 个中文意思之一
+    const opts = buildReviewOptions(w);
+    $('#testRun').innerHTML = `
+      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-card">
+        <div class="quiz-word">${esc(w.text)}</div>
+        ${url ? `<img class="quiz-img" src="${url}" alt="" style="max-height:28vh;margin:10px auto;display:block">` : ''}
+        <div class="choice-grid">
+          ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">${esc(o.text)}</button>`).join('')}
+        </div>
+        <div style="text-align:center;margin-top:12px">
+          <button class="btn" id="btnReviewHint" style="font-size:13.5px;min-height:38px">💡 提示例句</button>
+        </div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
+    $$('.choice-opt').forEach(b => b.onclick = () => {
+      if (T.answered) return;
+      const ok = b.dataset.correct === '1';
+      b.classList.add(ok ? 'ok' : 'bad');
+      if (!ok) $$('.choice-opt').forEach(x => { if (x.dataset.correct === '1') x.classList.add('ok'); });
+      finishQuestion(ok, w);
+    });
+    $('#btnReviewHint').onclick = () => showHintSentence(w, false);
+    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
   }
 }
 function submitSpell() {
@@ -2640,18 +2887,61 @@ function submitSpell() {
 }
 function finishQuestion(ok, word) {
   T.answered = true;
-  if (T.round === 1) {
-    if (ok) T.firstRoundCorrect++;
+  if (T.round === 1 && ok) T.firstRoundCorrect++;
+
+  const stage = T.tasks[T.taskIdx].stage;
+
+  // ── 错题记录 ──
+  if (T.mode === 'learn') {
+    // example 环节答错不记；其余环节答错记入错题池
+    if (stage !== 'example' && !ok) T.roundWrong.push(word);
+  } else if (T.mode === 'review') {
+    if (stage === 'review-choice') {
+      // 选意思阶段答错 → 记入「拼写错题」池
+      if (!ok) T.reviewWrong.push(word);
+    } else {
+      // 拼写阶段（reverse）答错 → 记入本轮错题（供重测）
+      if (!ok) T.roundWrong.push(word);
+    }
   }
-  if (!ok) T.roundWrong.push(word);
+
   gradeWord(word, ok);
+
+  // ── 反馈文案 ──
   const fb = $('#quizFb');
   if (fb) {
     fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
-    fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+    if (T.mode === 'review' && stage === 'review-choice') {
+      fb.textContent = ok ? '✓ 正确' : `✗ 正确答案：${meaningsToString(getMeanings(word))}`;
+    } else {
+      fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+    }
   }
-  Speech.speak(word.text);
-  setTimeout(() => showLearnCard(word, ok), 700);
+
+  // ── 学习卡显示（仅 learn 模式）──
+  // example                  → 答对答错都显示
+  // choice / spell / reverse → 只有答错才显示
+  const showCard =
+    (T.mode === 'learn' && (stage === 'example' || !ok)) ||
+    (T.mode === 'review' && stage === 'reverse' && !ok);
+
+  if (showCard) {
+    Speech.speak(word.text);
+    setTimeout(() => showLearnCard(word, ok), 700);
+  } else {
+    // 滑动下一题
+    const card = $('.quiz-card');
+    if (card) {
+      card.classList.add('slide-out');
+      setTimeout(() => {
+        T.taskIdx++;
+        renderQuestion();
+      }, 260);
+    } else {
+      T.taskIdx++;
+      renderQuestion();
+    }
+  }
 }
 function showLearnCard(word, ok) {
   const w = word;
@@ -2730,18 +3020,97 @@ function dedupWords(words) {
   return out;
 }
 
+/* 按批次号重建该批次的任务队列（不依赖切片，避免被错题数组污染） */
+function buildBatchTasks(batchIdx) {
+  const st = Object.assign({ choice: true, spell: true, reverse: true },
+                            S.settings.testStages || {});
+  const stages = ['example'];
+  if (st.choice)  stages.push('choice');
+  if (st.spell)   stages.push('spell');
+  if (st.reverse) stages.push('reverse');
+  const batch = T.batches[batchIdx] || [];
+  const tasks = [];
+  for (const stage of stages)
+    for (const word of batch)
+      tasks.push({ word, stage });
+  return tasks;
+}
+
 function endRound() {
-  if (T.roundWrong.length === 0) {
-    // 无错词 → 全部完成
+  if (T.mode === 'review') {
+    const firstStage = T.tasks[0] && T.tasks[0].stage;
+    // 选择题阶段结束 → 「全部完成」页
+    if (firstStage === 'review-choice') return showReviewSummary();
+    // 拼写阶段：有错题 → 重测到全对；否则 → 结果页
+    if (T.roundWrong.length > 0) {
+      const wrongWords = dedupWords(T.roundWrong);
+      T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
+      T.taskIdx = 0;
+      T.round++;
+      T.roundWrong = [];
+      return showRoundBreak(wrongWords.length);
+    }
     return showResult();
   }
-  // 有错词 → 构建下一轮，全部用 reverse 题型
-  const wrongWords = dedupWords(T.roundWrong);
-  T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
-  T.taskIdx = 0;
-  T.round++;
-  T.roundWrong = [];
-  showRoundBreak(wrongWords.length);
+  if (T.mode !== 'learn') return showResult();
+
+  // 有错词 → 本轮重测
+  if (T.roundWrong.length > 0) {
+    const wrongWords = dedupWords(T.roundWrong);
+    T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
+    T.taskIdx = 0;
+    T.round++;
+    T.roundWrong = [];
+    return showRoundBreak(wrongWords.length);
+  }
+
+  // 无错词 → 检查是否还有下一批
+  const nextBatchIdx = T.batchIdx + 1;
+  if (nextBatchIdx < T.batches.length) {
+    T.batchIdx = nextBatchIdx;
+    T.tasks = buildBatchTasks(T.batchIdx);   // ★ 按批重建，不再切片
+    T.taskIdx = 0;
+    T.round = 1;
+    return showBatchBreak(nextBatchIdx + 1, T.batches.length);
+  }
+
+  // 全部完成
+  showResult();
+}
+
+/* 批次之间的过渡页 */
+function showBatchBreak(batchNo, totalBatches) {
+  $('#testRun').innerHTML = `
+    <div class="quiz-progress">第 ${batchNo - 1} 组完成</div>
+    <div class="learn-card ok">
+      <div class="lc-badge">🎉 本组通过</div>
+      <div style="text-align:center;padding:16px 0 6px">
+        <div style="font-size:48px;font-weight:800;line-height:1;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent">${batchNo} / ${totalBatches}</div>
+        <div style="color:var(--muted);font-size:14px;margin-top:10px">下一组，继续加油</div>
+      </div>
+      <button class="btn primary block lg" id="batchNextBtn" style="margin-top:14px">继续下一组</button>
+    </div>`;
+
+  if (_learnEnterHandler) {
+    document.removeEventListener('keydown', _learnEnterHandler);
+    _learnEnterHandler = null;
+  }
+  let consumed = false;
+  const go = () => {
+    if (consumed) return;
+    consumed = true;
+    if (_learnEnterHandler) {
+      document.removeEventListener('keydown', _learnEnterHandler);
+      _learnEnterHandler = null;
+    }
+    renderQuestion();
+  };
+  _learnEnterHandler = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); go(); }
+  };
+  document.addEventListener('keydown', _learnEnterHandler);
+  $('#batchNextBtn').onclick = go;
+  setTimeout(() => { $('#batchNextBtn').focus(); }, 60);
 }
 
 function showRoundBreak(count) {
@@ -2782,9 +3151,76 @@ function showRoundBreak(count) {
   setTimeout(() => { $('#roundStartBtn').focus(); }, 60);
 }
 
+/* 复习的选择题阶段结束 → 「全部完成」页 */
+function showReviewSummary() {
+  const pool = T.reviewPool || [];
+  const wrong = T.reviewWrong || [];
+  const acc = pool.length
+    ? Math.round((pool.length - wrong.length) / pool.length * 100)
+    : 0;
+  $('#testRun').innerHTML = `
+    <div class="quiz-progress">复习完成</div>
+    <div class="learn-card ok">
+      <div class="lc-badge">🎉 全部过完</div>
+      <div style="text-align:center;padding:16px 0 6px">
+        <div style="font-size:48px;font-weight:800;line-height:1;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent">${acc}%</div>
+        <div style="color:var(--muted);font-size:14px;margin-top:10px">
+          共 ${pool.length} 词 · 答错 ${wrong.length} 词
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;width:100%">
+        <button class="btn primary block lg" id="rvSpellAll">✏️ 拼写全部单词（${pool.length}）</button>
+        <button class="btn block lg" id="rvSpellWrong" ${wrong.length ? '' : 'disabled'}>
+          🔁 拼写错题（${wrong.length}）
+        </button>
+      </div>
+    </div>`;
+
+  if (_learnEnterHandler) {
+    document.removeEventListener('keydown', _learnEnterHandler);
+    _learnEnterHandler = null;
+  }
+  // 回车默认触发「拼写全部」
+  _learnEnterHandler = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); startReviewSpell('all'); }
+  };
+  document.addEventListener('keydown', _learnEnterHandler);
+
+  $('#rvSpellAll').onclick = () => startReviewSpell('all');
+  $('#rvSpellWrong').onclick = () => startReviewSpell('wrong');
+}
+
+/* 拼写阶段：mode='all' 全部复习词；mode='wrong' 只拼选意思答错的词 */
+function startReviewSpell(mode) {
+  const pool = mode === 'wrong' ? T.reviewWrong.slice() : T.reviewPool.slice();
+  if (!pool.length) return toast('没有可拼写的单词', 'warn');
+
+  T.reviewSpellMode = mode;
+  T.reviewSpellPool = pool;
+  T.tasks = pool.map(w => ({ word: w, stage: 'reverse' }));
+  T.taskIdx = 0;
+  T.round = 1;
+  T.roundWrong = [];
+  T.firstRoundTotal = T.tasks.length;
+  T.firstRoundCorrect = 0;
+  T.answered = false;
+
+  if (_learnEnterHandler) {
+    document.removeEventListener('keydown', _learnEnterHandler);
+    _learnEnterHandler = null;
+  }
+
+  $('#testResult').hidden = true;
+  $('#testSetup').hidden = true;
+  $('#testRun').hidden = false;
+  renderQuestion();
+}
+
 function showResult() {
   $('#testRun').hidden = true;
   $('#testResult').hidden = false;
+  // 学习模式下，"重来"回到测试首页而不是重跑
+  const isLearn = T.mode === 'learn';
   const total = T.firstRoundTotal;
   const acc = total ? Math.round(T.firstRoundCorrect / total * 100) : 0;
   const words = T.wordPool;
@@ -2817,13 +3253,15 @@ function showResult() {
     </div>`;
   $('#btnRetryTest').onclick = () => {
     $('#testResult').hidden = true;
-    startTest();
+    if (isLearn) startLearn();
+    else if (T.mode === 'review') startReview();
+    else startTest();
   };
   $('#btnBackTestSetup').onclick = () => {
     $('#testResult').hidden = true;
     $('#testRun').hidden = true;
     $('#testSetup').hidden = false;
-    renderTestSetup();
+    renderTestHome();
   };
   window.scrollTo(0, 0);
 }
@@ -3653,7 +4091,7 @@ function openEditWord(w) {
       toast('已保存', 'ok');
       renderLibrary();
       renderLookup();
-      renderTestSetup();
+      renderTestHome();
       openLibraryDetail(w);
     } catch (e) {
       toast('保存失败：' + (e.message || e), 'err');
@@ -3991,7 +4429,7 @@ async function importPack(file) {
     toast(parts.length ? '✅ ' + parts.join('，') : '没有新内容', parts.length ? 'ok' : 'warn');
 
     renderCreate();
-    renderTestSetup();
+    renderTestHome();
     renderLookup();
     // 只有设置页当前打开着，才刷新它里面的统计数字；从顶部栏触发的同步不该强弹设置页
     if (!$('#settingsModal').hidden) openSettings();
@@ -4192,7 +4630,7 @@ async function syncNow() {
     toast('✅ 同步完成', 'ok');
 
     renderCreate();
-    renderTestSetup();
+    renderTestHome();
     renderLookup();
     openSettings();   // 刷新设置页里的统计数字
 
@@ -4224,7 +4662,7 @@ async function clearAllData() {
   S.settings = { ...DEFAULT_SETTINGS, webdav: keepWebdav, lastSyncAt: keepSyncAt };
   saveSettings();
   renderCreate();
-  renderTestSetup();
+  renderTestHome();
   renderLookup();
   toast('已清空', 'ok');
   closeSettings();
@@ -4457,24 +4895,15 @@ function bindEvents() {
     }
   };
 
-  // ── 测试页 ──
-  const chipHandler = (id, key, cb) => {
-    const wrap = $('#' + id);
-    if (!wrap) return;
-    wrap.addEventListener('click', e => {
-      const b = e.target.closest('.chip');
-      if (!b) return;
-      $$('.chip', wrap).forEach(x => x.classList.toggle('on', x === b));
-      T[key] = key === 'count' ? +b.dataset.v : b.dataset.v;
-      if (cb) cb();
-    });
-  };
-  chipHandler('scopeChips', 'scope', renderTestSetup);
-  chipHandler('countChips', 'count');
-
-  $('#btnStartTest').addEventListener('click', () => {
+  // ── 测试首页：开始学习 / 开始复习 ──
+  const _btnLearn = $('#btnStartLearn');
+  if (_btnLearn) _btnLearn.addEventListener('click', () => {
     Speech.warmup();
-    startTest();
+    startLearn();
+  });
+  const _btnReview = $('#btnStartReview');
+  if (_btnReview) _btnReview.addEventListener('click', () => {
+    toast('复习流程正在开发中（阶段 3 上线）', 'warn');
   });
 
   // ── 查词页 ──
@@ -4521,7 +4950,7 @@ function bindEvents() {
       S.settings.testStages = st;
       saveSettings();
       refreshStageButtons();
-      renderTestSetup();
+      renderTestHome();
       toast(st[key] ? '已开启' : '已关闭', 'ok');
     };
   });
@@ -4695,7 +5124,7 @@ async function boot() {
   refreshLookupModeUI();
   renderCreate();
   renderLibrary();
-  renderTestSetup();
+  renderTestHome();
   renderLookup();
   syncApiHzUI();
   syncImgApiUI();

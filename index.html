@@ -2506,8 +2506,10 @@ function shuffle(arr) {
 
 /* ── 测试首页：统计未学习 / 待复习 ── */
 function renderTestHome() {
-  // 未学习：从未答过题（srs.lastReview 为空）
-  const unlearned = S.words.filter(w => !w.srs || !w.srs.lastReview);
+  // 未学习：有图 + 从未答过题（srs.lastReview 为空）
+  const unlearned = S.words.filter(w =>
+    w.imageIds && w.imageIds.length &&
+    (!w.srs || !w.srs.lastReview));
   // 待复习：有图 + 答过题 + 记忆度 < 80%
   const due = S.words.filter(w => {
     if (!w.imageIds || !w.imageIds.length) return false;
@@ -2608,12 +2610,12 @@ function startLearn() {
 
   T.mode = 'learn';
   T.batches = session.batches;
-  T.tasks = session.tasks;
   T.batchIdx = 0;
+  T.tasks = buildBatchTasks(0);               // ★ 只装第一批，后续批次由 endRound 按需重建
   T.taskIdx = 0;
   T.round = 1;
   T.roundWrong = [];
-  T.firstRoundTotal = session.tasks.length;
+  T.firstRoundTotal = session.tasks.length;   // 全量题数（正确率分母）
   T.firstRoundCorrect = 0;
   T.answered = false;
   T.wordPool = session.wordPool;
@@ -3198,8 +3200,7 @@ function showResult() {
   $('#btnRetryTest').onclick = () => {
     $('#testResult').hidden = true;
     if (isLearn) startLearn();
-    else if (T.mode === 'review') startReview();
-    else startTest();
+    else startReview();
   };
   $('#btnBackTestSetup').onclick = () => {
     $('#testResult').hidden = true;

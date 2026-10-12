@@ -2283,6 +2283,8 @@ const T = {
   firstRoundCorrect: 0,
   answered: false,
   wordPool: [],         // 全部涉及到的词（用于结果页）
+  roundErrMap: {},      // ★ 本轮每个词的答错次数：{ [wordId]: errCount }
+  batchSettled: false,  // ★ 本批次是否已经结算过进度
 };
 
 let _learnEnterHandler = null;
@@ -2298,6 +2300,23 @@ function retColor(r) {
   if (r >= 0.8) return '#3ddc97';
   if (r >= 0.6) return '#ffb43c';
   return '#ff6b81';
+}
+/* 学习进度：0 ~ 1。
+   - 4 个环节全做完才结算，进度 = 1 − 答错次数 × 0.25
+   - 中途退出 → 0（下次重新学）
+   - 老词兼容：答过题但没记录过 learnProgress → 视为 1（已学完） */
+function learningProgressOf(word) {
+  if (!word.srs) return 0;
+  if (word.srs.learnProgress === undefined) {
+    return word.srs.lastReview ? 1 : 0;
+  }
+  return word.srs.learnProgress;
+}
+/* 学习进度对应的颜色：绿=学完 / 橙=学过但没全对 / 灰=未开始 */
+function progColor(p) {
+  if (p >= 1) return '#3ddc97';
+  if (p > 0)  return '#ffb43c';
+  return '#8b8ba7';
 }
 function gradeWord(word, ok) {
   if (!word.srs) word.srs = { strength: S.settings.srsInit, lastReview: null, reviews: [] };
@@ -2526,14 +2545,14 @@ function shuffle(arr) {
 
 /* ── 测试首页：统计未学习 / 待复习 ── */
 function renderTestHome() {
-  // 未学习：有图 + 从未答过题（srs.lastReview 为空）
+  // 未学习：有图 + 学习进度 < 100%
   const unlearned = S.words.filter(w =>
     w.imageIds && w.imageIds.length &&
-    (!w.srs || !w.srs.lastReview));
-  // 待复习：有图 + 答过题 + 记忆度 < 80%
+    learningProgressOf(w) < 1);
+  // 待复习：有图 + 学完（进度 100%）+ 记忆衰减到 < 80%
   const due = S.words.filter(w => {
     if (!w.imageIds || !w.imageIds.length) return false;
-    if (!w.srs || !w.srs.lastReview) return false;
+    if (learningProgressOf(w) < 1) return false;
     const r = retentionOf(w);
     return r !== null && r < 0.8;
   });
@@ -2585,7 +2604,7 @@ const LEARN_BATCH_SIZE = 20;
 /* 按 20 词一组，把未学习词切分 */
 function getUnlearnedWords() {
   return S.words.filter(w => w.imageIds && w.imageIds.length &&
-    (!w.srs || !w.srs.lastReview));
+    learningProgressOf(w) < 1);
 }
 
 function buildLearnSession() {
@@ -2639,6 +2658,8 @@ function startLearn() {
   T.firstRoundCorrect = 0;
   T.answered = false;
   T.wordPool = session.wordPool;
+  T.roundErrMap = {};                         // ★ 清空错题计数
+  T.batchSettled = false;                     // ★ 本批次未结算
 
   $('#testSetup').hidden = true;
   $('#testRun').hidden = false;
@@ -2648,8 +2669,8 @@ function startLearn() {
 
 function startReview() {
   const pool = S.words.filter(w => {
-    if (!w.imageIds || !w.imageIds.length) return false;   // ★ 没图的词不能进复习（拼写阶段会读图）
-    if (!w.srs || !w.srs.lastReview) return false;
+    if (!w.imageIds || !w.imageIds.length) return false;   // 没图的词不能进复习
+    if (learningProgressOf(w) < 1) return false;           // ★ 必须学完 4 个环节才能进复习
     const r = retentionOf(w);
     return r !== null && r < 0.8;
   });
@@ -2877,6 +2898,11 @@ function finishQuestion(ok, word) {
     }
   }
 
+  // ★ 学习模式首轮答错 → 记录，用于批次结束时的进度结算
+  if (T.mode === 'learn' && T.round === 1 && !ok) {
+    T.roundErrMap[word.id] = (T.roundErrMap[word.id] || 0) + 1;
+  }
+
   gradeWord(word, ok);
 
   // ── 反馈文案 ──
@@ -3008,6 +3034,20 @@ function buildBatchTasks(batchIdx) {
   return tasks;
 }
 
+/* 批次首轮走完后，批量结算这一批所有词的学习进度
+   progress = max(0, 1 - 答错次数 × 0.25) */
+function settleBatchProgress() {
+  const batch = T.batches[T.batchIdx] || [];
+  for (const w of batch) {
+    const errCount = T.roundErrMap[w.id] || 0;
+    const progress = Math.max(0, 1 - errCount * 0.25);
+    if (!w.srs) w.srs = { strength: S.settings.srsInit, lastReview: null, reviews: [] };
+    w.srs.learnProgress = progress;
+    w.updatedAt = nowMs();
+    DB.put('words', w);
+  }
+}
+
 function endRound() {
   if (T.mode === 'review') {
     const firstStage = T.tasks[0] && T.tasks[0].stage;
@@ -3026,6 +3066,12 @@ function endRound() {
   }
   if (T.mode !== 'learn') return showResult();
 
+  // ★ 首轮批次结束 → 结算这一批的学习进度（错题重测阶段不再结算）
+  if (!T.batchSettled) {
+    settleBatchProgress();
+    T.batchSettled = true;
+  }
+
   // 有错词 → 本轮重测
   if (T.roundWrong.length > 0) {
     const wrongWords = dedupWords(T.roundWrong);
@@ -3043,6 +3089,8 @@ function endRound() {
     T.tasks = buildBatchTasks(T.batchIdx);   // ★ 按批重建，不再切片
     T.taskIdx = 0;
     T.round = 1;
+    T.roundErrMap = {};                      // ★ 新批次清零
+    T.batchSettled = false;                  // ★ 新批次未结算
     return showBatchBreak(nextBatchIdx + 1, T.batches.length);
   }
 
@@ -3198,9 +3246,9 @@ function showResult() {
   const acc = total ? Math.round(T.firstRoundCorrect / total * 100) : 0;
   const words = T.wordPool;
   const items = words.map(w => {
-    const r = retentionOf(w);
-    const pct = r === null ? 0 : Math.round(r * 100);
-    const c = retColor(r);
+    const p = learningProgressOf(w);
+    const pct = Math.round(p * 100);
+    const c = progColor(p);
     return `<div class="ret-item">
       <span class="w">${esc(w.text)}</span>
       <div class="bar"><i style="width:${pct}%;background:${c}"></i></div>
@@ -3217,7 +3265,7 @@ function showResult() {
     </div>
     <div class="card">
       <h3>记忆状态</h3>
-      <p class="muted" style="font-size:12.5px;margin-bottom:4px">绿色＝牢固 · 黄色＝淡化 · 红色＝濒危</p>
+      <p class="muted" style="font-size:12.5px;margin-bottom:4px">绿色＝已学完 · 橙色＝学过但没全对 · 灰色＝未开始</p>
       <div class="ret-list">${items}</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
@@ -3477,9 +3525,9 @@ function openLookupDetail(w) {
   if (!modal) return;
   const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
   const meanings = getMeanings(w);
-  const r = retentionOf(w);
-  const rc = retColor(r);
-  const rTxt = r === null ? '未复习' : Math.round(r * 100) + '%';
+  const p = learningProgressOf(w);
+  const rc = progColor(p);
+  const pTxt = Math.round(p * 100) + '%';
 
   const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
   const meaningsHtml = plainMeanings.length
@@ -3504,7 +3552,7 @@ function openLookupDetail(w) {
       <span>${esc(w.category || '未分类')}</span>
       <span class="lkd-ret" style="color:${rc}">
         <span class="rd" style="background:${rc};box-shadow:0 0 8px ${rc}"></span>
-        记忆保持 ${rTxt}
+        学习进度 ${pTxt}
       </span>
     </div>
     ${phrasesBlock}
@@ -3859,9 +3907,9 @@ function renderLibrary() {
   if (empty) empty.hidden = true;
   box.innerHTML = list.map((w, i) => {
     const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
-    const r = retentionOf(w);
-    const c = retColor(r);
-    const pct = r === null ? '未复习' : Math.round(r * 100) + '%';
+    const p = learningProgressOf(w);
+    const c = progColor(p);
+    const pct = Math.round(p * 100) + '%';
     const meanings = getMeanings(w);
     const meanText = meanings.length ? meaningsToString(meanings) : '— 暂无释义 —';
     return `<div class="word-item" data-id="${w.id}" style="animation-delay:${Math.min(i * 18, 300)}ms">
@@ -3895,9 +3943,9 @@ function openLibraryDetail(w) {
   if (!modal) return;
   const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
   const meanings = getMeanings(w);
-  const r = retentionOf(w);
-  const rc = retColor(r);
-  const rTxt = r === null ? '未复习' : Math.round(r * 100) + '%';
+  const p = learningProgressOf(w);
+  const rc = progColor(p);
+  const pTxt = Math.round(p * 100) + '%';
   const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
   const meaningsHtml = plainMeanings.length
     ? plainMeanings.map(m => `
@@ -3921,7 +3969,7 @@ function openLibraryDetail(w) {
       <span>${esc(w.category || '未分类')}</span>
       <span class="lkd-ret" style="color:${rc}">
         <span class="rd" style="background:${rc};box-shadow:0 0 8px ${rc}"></span>
-        记忆保持 ${rTxt}
+        学习进度 ${pTxt}
       </span>
     </div>
     ${phrasesBlock}

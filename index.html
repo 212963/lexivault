@@ -1174,7 +1174,7 @@ label:first-of-type{margin-top:0}
     <div class="set-section">
       <div class="set-title">📝 测试环节</div>
       <div class="sync-hint">
-        勾选测试要覆盖的环节。测试时每个单词会依次走一遍启用的环节，顺序固定为「看词选图 → 看图拼词 → 看中拼英文」。
+        勾选测试要覆盖的环节。「看例句选图」永远开启（学习第一步，也是最基础的一关）。其余环节按「看词选图 → 看图拼词 → 看中拼英文」的顺序走。
       </div>
       <div class="stage-switch">
         <button class="stage-btn" data-stage="choice">🖼 看词选图</button>
@@ -1393,17 +1393,20 @@ label:first-of-type{margin-top:0}
    §6.5   新建单词          POS_LIST / C / renderCreate / saveCreateWord
                            compressImage / addImagesFromFiles
    §6.6   测试              T / retentionOf / gradeWord / getMeanings
-                           renderTestHome / startLearn / buildLearnSession
+                           renderTestHome / startLearn / buildLearnSession / buildBatchTasks
+                           startReview / startReviewSpell / buildReviewOptions
                            renderQuestion / submitSpell / finishQuestion / showLearnCard
-                           endRound / showRoundBreak / showBatchBreak / showResult
+                           endRound / showRoundBreak / showBatchBreak / showReviewSummary / showResult
                            ★ 学习流程：未学习词按 20 词一批
                              每批按 example → choice → spell → reverse 顺序各过一遍
                              批内错词用 reverse 重测到全对，再进下一批
+                           ★ 复习流程：待复习词（retentionOf < 0.8）一口气过完
+                             阶段1：看词 + 图片 → 选 4 个中文意思之一
+                             阶段2：拼写全部 / 拼写错题（都是 reverse 题型）
+                             拼写错题用 reverse 重测到全对
                            ★ 测试环节开关：S.settings.testStages
                                             { choice, spell, reverse }
                                             （example 环节永远开启）
-                           ★ 僵尸代码（待阶段 4 清理）：
-                              scopeWords / startTest / T.scope / T.count
    §6.7   查词              renderLookup / openLookupDetail
                            fetchWordInfoFromApiHz / parseApiHzMeanings（走接口盒子）
    §6.74  智能配图          openSmartImagePicker（Pixabay / LoremFlickr）
@@ -2265,7 +2268,6 @@ const T = {
   // 学习：批次
   batches: [],          // [[w1..w20], [w21..w40], ...]
   batchIdx: 0,          // 当前批次下标
-  batchBoundaries: [],  // tasks 里每批结束的索引（含边界）
   // 复习
   reviewPool: [],       // 待复习词
   reviewWrong: [],      // 选意思阶段答错的词
@@ -2280,9 +2282,6 @@ const T = {
   firstRoundCorrect: 0,
   answered: false,
   wordPool: [],         // 全部涉及到的词（用于结果页）
-  // 旧的兼容字段（review 阶段会重新赋值）
-  scope: 'all',
-  count: 0,
 };
 
 let _learnEnterHandler = null;
@@ -2503,32 +2502,15 @@ function shuffle(arr) {
   }
   return a;
 }
-function scopeWords(scope) {
-  const now = nowMs();
-  const d0 = new Date(); d0.setHours(0, 0, 0, 0);   // 今天 00:00
-  const d0ms = d0.getTime();
-  const d1ms = d0ms - DAY;                          // 昨天 00:00
-  const d3ms = d0ms - 3 * DAY;                      // 大前天 00:00
-
-  return S.words.filter(w => {
-    if (!w.imageIds || !w.imageIds.length) return false;
-    if (scope === 'today')      return w.createdAt >= d0ms;
-    if (scope === 'yesterday')  return w.createdAt >= d1ms && w.createdAt < d0ms;
-    if (scope === 'last3days')  return w.createdAt >= d3ms && w.createdAt < d0ms;
-    if (scope === 'week')       return now - w.createdAt <= 7 * DAY;
-    if (scope === 'month')      return now - w.createdAt <= 30 * DAY;
-    if (scope === 'due')        { const r = retentionOf(w); return r === null || r < 0.7; }
-    return true;
-  });
-}
-/* （旧 renderTestSetup 已删除：测试首页改为「学习 / 复习」两个入口后不再需要） */
+/* （旧 scopeWords / renderTestSetup 已删除：测试首页改为「学习 / 复习」两个入口后不再需要） */
 
 /* ── 测试首页：统计未学习 / 待复习 ── */
 function renderTestHome() {
   // 未学习：从未答过题（srs.lastReview 为空）
   const unlearned = S.words.filter(w => !w.srs || !w.srs.lastReview);
-  // 待复习：答过题，但记忆度 < 80%
+  // 待复习：有图 + 答过题 + 记忆度 < 80%
   const due = S.words.filter(w => {
+    if (!w.imageIds || !w.imageIds.length) return false;
     if (!w.srs || !w.srs.lastReview) return false;
     const r = retentionOf(w);
     return r !== null && r < 0.8;
@@ -2573,42 +2555,6 @@ function buildReviewOptions(word) {
   }
   return shuffle(opts);
 }
-function startTest() {
-  const pool = scopeWords(T.scope);
-  if (!pool.length) return toast('当前范围没有可测单词', 'warn');
-
-  const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
-  const stages = [];
-  if (st.choice)  stages.push('choice');
-  if (st.spell)   stages.push('spell');
-  if (st.reverse) stages.push('reverse');
-  if (!stages.length) return toast('请到设置里至少启用一个测试环节', 'warn');
-
-  const n = T.count === 0 ? pool.length : Math.min(T.count, pool.length);
-  T.wordPool = shuffle(pool).slice(0, n);
-
-  // 构建第一轮任务队列：逐环节，每个环节过一遍所有单词
-  const tasks = [];
-  for (const stage of stages) {
-    for (const word of T.wordPool) {
-      tasks.push({ word, stage });
-    }
-  }
-
-  T.tasks = tasks;
-  T.taskIdx = 0;
-  T.round = 1;
-  T.roundWrong = [];
-  T.firstRoundTotal = tasks.length;
-  T.firstRoundCorrect = 0;
-  T.answered = false;
-
-  $('#testSetup').hidden = true;
-  $('#testRun').hidden = false;
-  $('#testResult').hidden = true;
-  renderQuestion();
-}
-
 /* ══════════════════════════════════════════════
    Learn 流程：未学习词分批学习
    ══════════════════════════════════════════════ */
@@ -2639,20 +2585,17 @@ function buildLearnSession() {
 
   // 展开成扁平任务队列
   const tasks = [];
-  const boundaries = [];
   for (const batch of batches) {
     for (const stage of stages) {
       for (const word of batch) {
         tasks.push({ word, stage });
       }
     }
-    boundaries.push(tasks.length);   // 每批结束的索引
   }
 
   return {
     batches,
     tasks,
-    boundaries,
     wordPool: pool,
   };
 }
@@ -2666,7 +2609,6 @@ function startLearn() {
   T.mode = 'learn';
   T.batches = session.batches;
   T.tasks = session.tasks;
-  T.batchBoundaries = session.boundaries;
   T.batchIdx = 0;
   T.taskIdx = 0;
   T.round = 1;
@@ -2684,6 +2626,7 @@ function startLearn() {
 
 function startReview() {
   const pool = S.words.filter(w => {
+    if (!w.imageIds || !w.imageIds.length) return false;   // ★ 没图的词不能进复习（拼写阶段会读图）
     if (!w.srs || !w.srs.lastReview) return false;
     const r = retentionOf(w);
     return r !== null && r < 0.8;
@@ -2742,7 +2685,7 @@ function renderQuestion() {
 
   let progressText;
   if (T.round === 1) {
-    const stageName = { choice: '看词选图', spell: '看图拼词', reverse: '看中拼英文', 'review-choice': '选中文' }[stage];
+    const stageName = { example: '看例句选图', choice: '看词选图', spell: '看图拼词', reverse: '看中拼英文', 'review-choice': '选中文' }[stage];
     progressText = `第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · ${stageName}`;
   } else {
     progressText = `错题重测 · 第 ${T.taskIdx + 1} / ${T.tasks.length} 题`;
@@ -3204,6 +3147,7 @@ function startReviewSpell(mode) {
   T.firstRoundTotal = T.tasks.length;
   T.firstRoundCorrect = 0;
   T.answered = false;
+  T.wordPool = pool;   // ★ 让结果页显示的是本批拼写词，而不是全部复习词
 
   if (_learnEnterHandler) {
     document.removeEventListener('keydown', _learnEnterHandler);
@@ -3239,7 +3183,7 @@ function showResult() {
       <div class="result-stat">
         <div class="pct">${acc}%</div>
         <div class="sub">首轮正确 ${T.firstRoundCorrect} / ${total} 题</div>
-        <div class="sub" style="margin-top:4px;font-size:12.5px">共 ${words.length} 个单词 · 全部通过 ✓</div>
+        <div class="sub" style="margin-top:4px;font-size:12.5px">${isLearn ? '共 ' + words.length + ' 个单词 · 全部通过 ✓' : '共 ' + words.length + ' 个单词 · 复习完成'}</div>
       </div>
     </div>
     <div class="card">
@@ -4903,7 +4847,8 @@ function bindEvents() {
   });
   const _btnReview = $('#btnStartReview');
   if (_btnReview) _btnReview.addEventListener('click', () => {
-    toast('复习流程正在开发中（阶段 3 上线）', 'warn');
+    Speech.warmup();
+    startReview();
   });
 
   // ── 查词页 ──

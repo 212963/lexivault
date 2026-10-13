@@ -2244,7 +2244,7 @@ async function saveCreateWord() {
     imageIds: [...C.imageIds],
     createdAt: ts,
     updatedAt: ts,   // ★ 同步用，从手机版开始必须有
-    srs: { strength: S.settings.srsInit, lastReview: null, reviews: [] },
+    srs: { strength: S.settings.srsInit, lastReview: null, reviews: [], learnProgress: 0 },
   };
   S.words.unshift(rec);
   await DB.put('words', rec);
@@ -2302,15 +2302,20 @@ function retColor(r) {
   return '#ff6b81';
 }
 /* 学习进度：0 ~ 1。
-   - 4 个环节全做完才结算，进度 = 1 − 答错次数 × 0.25
+   - 4 个环节全做完才结算，进度 = 1 − 首轮答错次数 × 0.25
    - 中途退出 → 0（下次重新学）
-   - 老词兼容：答过题但没记录过 learnProgress → 视为 1（已学完） */
+   - 老词兼容：没记录过 learnProgress 的，只有 reviews >= 4 条
+     （说明完整走过一遍 4 环节）才算学完，否则视为未学习 */
 function learningProgressOf(word) {
   if (!word.srs) return 0;
-  if (word.srs.learnProgress === undefined) {
-    return word.srs.lastReview ? 1 : 0;
+  if (word.srs.learnProgress !== undefined) return word.srs.learnProgress;
+  // 老词兼容
+  if (word.srs.lastReview &&
+      Array.isArray(word.srs.reviews) &&
+      word.srs.reviews.length >= 4) {
+    return 1;
   }
-  return word.srs.learnProgress;
+  return 0;
 }
 /* 学习进度对应的颜色：绿=学完 / 橙=学过但没全对 / 灰=未开始 */
 function progColor(p) {

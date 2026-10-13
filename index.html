@@ -636,6 +636,100 @@ label:first-of-type{margin-top:0}
   opacity:.42;cursor:not-allowed;
 }
 
+/* ═══════════ 测试首页：词库可视化圆环 ═══════════ */
+#testSetup{
+  display:flex;
+  flex-direction:column;
+  min-height:calc(100dvh - var(--tabbar-h) - var(--safe-bottom) - var(--safe-top) - 130px);
+}
+.test-spacer{flex:1;min-height:24px;}
+
+.ring-card{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;
+  padding:26px 16px 20px;
+  border-radius:24px;
+  background:rgba(var(--surface-rgb),.78);
+  border:1px solid var(--border);
+  backdrop-filter:blur(var(--blur));
+  -webkit-backdrop-filter:blur(var(--blur));
+  box-shadow:var(--shadow);
+  margin-bottom:16px;
+  overflow:hidden;
+}
+.ring-card::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 10%,rgba(var(--accent-rgb),.16),transparent 55%),
+    radial-gradient(circle at 50% 100%,rgba(var(--accent2-rgb),.12),transparent 55%);
+}
+.ring-wrap{
+  position:relative;
+  width:208px;height:208px;
+  margin-bottom:20px;
+  z-index:1;
+}
+.ring-svg{
+  width:100%;height:100%;display:block;
+  transform:rotate(-90deg);
+}
+.ring-svg circle{fill:none;stroke-linecap:butt;}
+.ring-track{stroke:rgba(var(--text-rgb),.06);stroke-width:14;}
+.ring-seg{
+  stroke-width:14;
+  transition:stroke-dasharray 1.25s cubic-bezier(.22,1,.36,1);
+}
+.ring-center{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  pointer-events:none;
+}
+.ring-total{
+  font-size:46px;font-weight:800;letter-spacing:-1.8px;line-height:1;
+  font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.ring-total-label{
+  font-size:11.5px;color:var(--muted);
+  margin-top:6px;font-weight:600;letter-spacing:.6px;
+}
+.ring-legend{
+  position:relative;z-index:1;
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:8px;width:100%;
+  padding-top:16px;border-top:1px solid var(--border);
+}
+.legend-item{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:4px;
+}
+.legend-num{
+  font-size:22px;font-weight:800;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.7px;line-height:1;
+  color:var(--text);
+}
+.legend-name{
+  font-size:11px;color:var(--muted);font-weight:600;
+  display:flex;align-items:center;gap:5px;
+}
+.legend-dot{
+  width:7px;height:7px;border-radius:50%;
+  display:inline-block;flex-shrink:0;
+}
+.legend-dot.learned{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 0 8px rgba(var(--accent-rgb),.65);
+}
+.legend-dot.review{
+  background:linear-gradient(135deg,#ffd166,#ff8b3d);
+  box-shadow:0 0 8px rgba(255,180,60,.55);
+}
+.legend-dot.new{
+  background:rgba(var(--text-rgb),.28);
+}
+
 /* ═══════════ 测试首页（卡片式）═══════════ */
 .test-entry-grid{
   display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;
@@ -1150,6 +1244,48 @@ label:first-of-type{margin-top:0}
         <button type="button" class="rb-btn ghost" id="resumeDiscard">放弃</button>
         <button type="button" class="rb-btn" id="resumeContinue">继续</button>
       </div>
+
+      <!-- 词库可视化圆环 -->
+      <div class="ring-card">
+        <div class="ring-wrap">
+          <svg class="ring-svg" viewBox="0 0 200 200">
+            <defs>
+              <linearGradient id="gradLearned" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" style="stop-color:var(--accent)"/>
+                <stop offset="100%" style="stop-color:var(--accent2)"/>
+              </linearGradient>
+              <linearGradient id="gradReview" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" style="stop-color:#ffd166"/>
+                <stop offset="100%" style="stop-color:#ff8b3d"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-track" cx="100" cy="100" r="78"/>
+            <circle class="ring-seg ring-seg-learned" id="ringSegLearned" cx="100" cy="100" r="78" stroke="url(#gradLearned)" stroke-dasharray="0 490.09"/>
+            <circle class="ring-seg ring-seg-review"  id="ringSegReview"  cx="100" cy="100" r="78" stroke="url(#gradReview)"  stroke-dasharray="0 490.09"/>
+            <circle class="ring-seg ring-seg-new"     id="ringSegNew"     cx="100" cy="100" r="78" stroke="rgba(140,140,160,.28)" stroke-dasharray="0 490.09"/>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-total" id="ringTotal">0</div>
+            <div class="ring-total-label">总词数</div>
+          </div>
+        </div>
+        <div class="ring-legend">
+          <div class="legend-item">
+            <div class="legend-num" id="ringLearnedNum">0</div>
+            <div class="legend-name"><span class="legend-dot learned"></span>已学习</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-num" id="ringReviewNum">0</div>
+            <div class="legend-name"><span class="legend-dot review"></span>待复习</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-num" id="ringNewNum">0</div>
+            <div class="legend-name"><span class="legend-dot new"></span>未学习</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="test-spacer"></div>
 
       <div class="test-entry-grid">
         <button type="button" class="test-entry-card learn" id="btnStartLearn" disabled>
@@ -2654,6 +2790,56 @@ function shuffle(arr) {
 }
 /* （旧 scopeWords / renderTestSetup 已删除：测试首页改为「学习 / 复习」两个入口后不再需要） */
 
+/* ── 词库可视化圆环：三段（已学习 / 待复习 / 未学习） ── */
+const RING_CIRC = 2 * Math.PI * 78;   // ≈ 490.09
+
+function renderRing() {
+  const total = S.words.length;
+
+  // 分类统计
+  let learned = 0, review = 0, fresh = 0;
+  for (const w of S.words) {
+    const p = learningProgressOf(w);
+    if (p <= 0) fresh++;
+    else if (p >= 0.8) learned++;
+    else review++;
+  }
+
+  // 中心数字 + 图例
+  const rt = $('#ringTotal');        if (rt) rt.textContent = total;
+  const rl = $('#ringLearnedNum');   if (rl) rl.textContent = learned;
+  const rr = $('#ringReviewNum');    if (rr) rr.textContent = review;
+  const rn = $('#ringNewNum');       if (rn) rn.textContent = fresh;
+
+  // 三段长度与起点
+  const ratioL = total ? learned / total : 0;
+  const ratioV = total ? review  / total : 0;
+  const ratioN = total ? fresh   / total : 0;
+  const lenL = ratioL * RING_CIRC;
+  const lenV = ratioV * RING_CIRC;
+  const lenN = ratioN * RING_CIRC;
+
+  // 应用（先重置为 0 → 下一帧设真实值，触发 CSS transition）
+  applyRingSeg('#ringSegLearned', lenL, 0,              0);
+  applyRingSeg('#ringSegReview',  lenV, lenL,           150);
+  applyRingSeg('#ringSegNew',     lenN, lenL + lenV,    300);
+}
+
+function applyRingSeg(sel, len, start, delayMs) {
+  const el = $(sel);
+  if (!el) return;
+  el.style.transition = 'none';
+  el.style.strokeDasharray = `0 ${RING_CIRC}`;
+  el.style.strokeDashoffset = String(-start);
+  // 强制回流，然后再恢复 transition
+  void el.getBoundingClientRect();
+  el.style.transition = '';
+  el.style.transitionDelay = delayMs + 'ms';
+  requestAnimationFrame(() => {
+    el.style.strokeDasharray = `${len} ${RING_CIRC}`;
+  });
+}
+
 /* ── 测试首页：统计未学习 / 待复习 ── */
 function renderTestHome() {
   // 未学习：有图 + 学习进度 < 100%
@@ -2693,6 +2879,9 @@ function renderTestHome() {
       banner.hidden = true;
     }
   }
+
+  // ── 词库可视化圆环 ──
+  renderRing();
 }
 
 function buildOptions(word) {

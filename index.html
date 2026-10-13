@@ -75,6 +75,9 @@ body::before{
 }
 ::-webkit-scrollbar{width:0;height:0}
 
+/* ★ 加固 [hidden]：防止任何 display 声明把它覆盖掉 */
+[hidden]{display:none!important}
+
 /* ═══════════ 顶部栏 ═══════════ */
 .topbar{
   position:sticky;top:0;z-index:20;
@@ -547,7 +550,7 @@ label:first-of-type{margin-top:0}
 .sent-row{padding:7px 0}
 .sent-row + .sent-row{border-top:1px dashed var(--border)}
 .sent-en{
-  font-size:13.5px;font-style:italic;line-height:1.55;
+  font-size:14px;font-weight:600;line-height:1.55;
   color:var(--text);word-break:break-word;
 }
 .sent-cn{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.55}
@@ -589,7 +592,7 @@ label:first-of-type{margin-top:0}
   animation:fadeUp .25s var(--ease);
 }
 .hint-en{
-  font-size:13.5px;font-style:italic;line-height:1.55;
+  font-size:14px;font-weight:600;line-height:1.55;
   color:var(--text);word-break:break-word;
 }
 .hint-cn{
@@ -3063,7 +3066,7 @@ function renderQuestion() {
     $('#testRun').innerHTML = `
       <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card">
-        <div class="rev-meaning" style="font-style:italic;text-align:left;font-size:14px;line-height:1.6;padding:12px 14px">
+        <div class="rev-meaning" style="text-align:left;font-size:15px;font-weight:600;line-height:1.65;padding:14px 16px">
           ${en ? highlightWordInText(en, w.text) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
         </div>
         <div style="text-align:center;margin:10px 0 4px">
@@ -3094,7 +3097,7 @@ function renderQuestion() {
       <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card">
         <div class="quiz-word">${esc(w.text)}</div>
-        ${hintEn ? `<div class="rev-meaning" style="font-style:italic;text-align:left;font-size:13px;line-height:1.5;padding:10px 12px;margin-bottom:10px;background:rgba(var(--accent2-rgb),.06);border-color:rgba(var(--accent2-rgb),.18)">${esc(hintEn)}</div>` : ''}
+        ${hintEn ? `<div class="rev-meaning" style="text-align:left;font-size:14px;font-weight:600;line-height:1.55;padding:11px 13px;margin-bottom:10px;background:rgba(var(--accent2-rgb),.06);border-color:rgba(var(--accent2-rgb),.18)">${esc(hintEn)}</div>` : ''}
         <div style="text-align:center;margin-bottom:6px">
           <button class="btn" id="btnQuizSpeak" style="font-size:13.5px;min-height:38px">🔊 发音</button>
         </div>

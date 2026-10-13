@@ -636,6 +636,78 @@ label:first-of-type{margin-top:0}
   opacity:.42;cursor:not-allowed;
 }
 
+/* ═══════════ 测试首页（卡片式）═══════════ */
+.test-entry-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;
+}
+.test-entry-card{
+  position:relative;padding:22px 18px;border-radius:20px;
+  border:1px solid var(--border);
+  background:rgba(var(--surface-rgb),.78);
+  backdrop-filter:blur(var(--blur));
+  -webkit-backdrop-filter:blur(var(--blur));
+  cursor:pointer;text-align:left;font-family:inherit;color:var(--text);
+  transition:all .22s var(--ease);
+  min-height:170px;
+  display:flex;flex-direction:column;justify-content:flex-end;
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.test-entry-card::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 30% 100%,rgba(var(--accent-rgb),.22),transparent 70%);
+}
+.test-entry-card.review::before{
+  background:radial-gradient(circle at 30% 100%,rgba(var(--accent2-rgb),.22),transparent 70%);
+}
+.test-entry-card:active{transform:scale(.97)}
+.test-entry-card[disabled]{opacity:.42;cursor:not-allowed}
+.test-entry-card[disabled]:active{transform:none}
+.te-label{
+  position:relative;z-index:1;
+  font-size:17px;font-weight:700;letter-spacing:-.2px;margin-bottom:6px;
+}
+.te-count{
+  position:relative;z-index:1;
+  font-size:44px;font-weight:800;letter-spacing:-1.8px;line-height:1;
+  font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.test-entry-card.review .te-count{
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  -webkit-background-clip:text;background-clip:text;
+}
+.te-sub{
+  position:relative;z-index:1;
+  font-size:12px;color:var(--muted);margin-top:4px;
+  font-weight:600;letter-spacing:.3px;
+}
+
+/* 继续上次进度横幅 */
+.resume-banner{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 16px;border-radius:16px;
+  background:linear-gradient(135deg,rgba(var(--accent-rgb),.16),rgba(var(--accent2-rgb),.12));
+  border:1px solid rgba(var(--accent-rgb),.3);
+  margin-bottom:14px;
+}
+.resume-banner[hidden]{display:none!important}
+.resume-banner .rb-body{flex:1;min-width:0}
+.resume-banner .rb-title{font-size:14px;font-weight:700;margin-bottom:2px}
+.resume-banner .rb-sub{font-size:11.5px;color:var(--muted)}
+.resume-banner .rb-btn{
+  padding:8px 14px;border-radius:10px;border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;font-family:inherit;font-size:13px;font-weight:700;
+  cursor:pointer;min-height:36px;flex-shrink:0;
+  transition:all .2s var(--ease);
+}
+.resume-banner .rb-btn:active{transform:scale(.96)}
+.resume-banner .rb-btn.ghost{
+  background:rgba(var(--text-rgb),.08);
+  color:var(--muted);
+}
+
 /* ═══════════ 测试滑动特效 ═══════════ */
 @keyframes slideInRight{
   from{opacity:0;transform:translateX(60px)}
@@ -922,6 +994,11 @@ label:first-of-type{margin-top:0}
     <h1 id="viewTitle">新建单词</h1>
     <p class="sub" id="viewSub">把一张图片和一个单词绑定起来</p>
   </div>
+  <button class="icon-btn" id="btnExitTest" title="退出测试" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+    </svg>
+  </button>
   <button class="icon-btn" id="btnCloudSync" title="云同步">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
       <path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6-1.6A4.5 4.5 0 0 0 6.5 19z"/>
@@ -1065,22 +1142,26 @@ label:first-of-type{margin-top:0}
 
     <!-- 测试首页：学习 / 复习 -->
     <div id="testSetup">
-      <div class="test-entry">
-        <div class="test-entry-head">
-          <h3>📖 学习</h3>
-          <div class="test-entry-count" id="learnCount">0<small>词</small></div>
+      <div class="resume-banner" id="resumeBanner" hidden>
+        <div class="rb-body">
+          <div class="rb-title">继续上次进度</div>
+          <div class="rb-sub" id="resumeSub"></div>
         </div>
-        <div class="test-entry-sub">还没学过的单词。一次 20 词，小循环过关。</div>
-        <button class="btn primary block lg" id="btnStartLearn" disabled>开始学习</button>
+        <button type="button" class="rb-btn ghost" id="resumeDiscard">放弃</button>
+        <button type="button" class="rb-btn" id="resumeContinue">继续</button>
       </div>
 
-      <div class="test-entry review">
-        <div class="test-entry-head">
-          <h3>🔄 复习</h3>
-          <div class="test-entry-count" id="reviewCount">0<small>词</small></div>
-        </div>
-        <div class="test-entry-sub">记忆度低于 80% 的单词，选意思、拼错题。</div>
-        <button class="btn primary block lg" id="btnStartReview" disabled>开始复习</button>
+      <div class="test-entry-grid">
+        <button type="button" class="test-entry-card learn" id="btnStartLearn" disabled>
+          <div class="te-label">Learn</div>
+          <div class="te-count" id="learnCount">0</div>
+          <div class="te-sub">未学习</div>
+        </button>
+        <button type="button" class="test-entry-card review" id="btnStartReview" disabled>
+          <div class="te-label">Review</div>
+          <div class="te-count" id="reviewCount">0</div>
+          <div class="te-sub">待复习</div>
+        </button>
       </div>
     </div>
 
@@ -1929,6 +2010,9 @@ const S = {
 
   // 总词库筛选状态
   filters: { q: '', cat: 'all', letter: 'all', sort: 'new' },
+
+  // 断点续传：上次没做完的测试进度快照（内存副本）
+  savedTestProgress: null,
 };
 
 /* 图片 URL 缓存 */
@@ -1969,6 +2053,7 @@ function switchView(name) {
   if (name === 'lookup') renderLookup();
   if (name === 'library') renderLibrary();
   if (name === 'test') renderTestHome();
+  if (typeof updateExitButton === 'function') updateExitButton();
 }
 
 /* ══════════════════════════════════════════════
@@ -2413,13 +2498,40 @@ function splitSentenceLine(line) {
 }
 /* 把例句里的目标单词用 .hl-word 包起来（大小写不敏感，只匹配完整单词）
    返回已经 esc 过的 HTML 片段 */
+/* 把例句里的目标单词（及其常见形态变化）用 .hl-word 包起来
+   - 长度 ≥ 4：按词干匹配，assist 也能高亮 assisting / assists / assisted / assistance
+     · 结尾 e 的额外补去 e 版本：care → caring / cared
+     · 结尾「辅音 + y」的额外补 y→i 版本：study → studies / studied
+   - 长度 ≤ 3：只精确匹配，避免 is 误伤 issue、a 误伤 about */
 function highlightWordInText(text, word) {
   const raw = String(text || '');
   const w = String(word || '').trim();
   if (!raw) return '';
   if (!w) return esc(raw);
-  const safe = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`\\b${safe}\\b`, 'gi');
+
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const low = w.toLowerCase();
+  const safe = escRe(low);
+
+  let re;
+  if (low.length < 4) {
+    re = new RegExp(`\\b${safe}\\b`, 'gi');
+  } else {
+    const alts = [safe];                       // 原词干
+    if (low.endsWith('e')) {                   // care → caring / cared
+      const stem = escRe(low.slice(0, -1));
+      alts.push(stem + 'ing');
+      alts.push(stem + 'ed');
+    }
+    if (low.endsWith('y') && low.length > 1 && !'aeiou'.includes(low[low.length - 2])) {
+      const stem = escRe(low.slice(0, -1));    // study → studies / studied
+      alts.push(stem + 'ies');
+      alts.push(stem + 'ied');
+    }
+    const pattern = alts.map(a => `${a}[a-z]*`).join('|');
+    re = new RegExp(`\\b(?:${pattern})\\b`, 'gi');
+  }
+
   const parts = [];
   let last = 0, m;
   while ((m = re.exec(raw)) !== null) {
@@ -2558,13 +2670,29 @@ function renderTestHome() {
 
   const lc = $('#learnCount');
   const rc = $('#reviewCount');
-  if (lc) lc.innerHTML = `${unlearned.length}<small>词</small>`;
-  if (rc) rc.innerHTML = `${due.length}<small>词</small>`;
+  if (lc) lc.textContent = unlearned.length;
+  if (rc) rc.textContent = due.length;
 
   const lBtn = $('#btnStartLearn');
   const rBtn = $('#btnStartReview');
   if (lBtn) lBtn.disabled = unlearned.length === 0;
   if (rBtn) rBtn.disabled = due.length === 0;
+
+  // ── 「继续上次进度」横幅 ──
+  const banner = $('#resumeBanner');
+  if (banner) {
+    const sp = S.savedTestProgress;
+    if (sp && sp.tasks && sp.tasks.length) {
+      const n = sp.tasks.length;
+      const idx = Math.min(sp.taskIdx || 0, n - 1);
+      const modeName = sp.mode === 'review' ? '复习' : '学习';
+      const sub = $('#resumeSub');
+      if (sub) sub.textContent = `${modeName} · 第 ${idx + 1} / ${n} 题`;
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+  }
 }
 
 function buildOptions(word) {
@@ -2719,6 +2847,7 @@ function bindSpellInput(word, stage) {
 }
 function renderQuestion() {
   if (T.taskIdx >= T.tasks.length) return endRound();
+  saveTestProgress();   // ★ 每次切题都自动存档
 
   const task = T.tasks[T.taskIdx];
   const w = task.word;
@@ -3017,6 +3146,92 @@ function dedupWords(words) {
   return out;
 }
 
+/* ── 断点续传：存档 / 读档 / 清档 / 恢复 ── */
+const TEST_PROGRESS_KEY = 'lexivault.mobile.testProgress';
+
+function saveTestProgress() {
+  if (!T.tasks || !T.tasks.length) return;
+  if (T.mode !== 'learn' && T.mode !== 'review') return;
+  try {
+    const snap = {
+      v: 1,
+      ts: nowMs(),
+      mode: T.mode,
+      batches: (T.batches || []).map(b => b.map(w => w.id)),
+      batchIdx: T.batchIdx || 0,
+      tasks: T.tasks.map(t => ({ wid: t.word.id, stage: t.stage })),
+      taskIdx: T.taskIdx || 0,
+      round: T.round || 1,
+      roundWrong: (T.roundWrong || []).map(w => w.id),
+      firstRoundTotal: T.firstRoundTotal || 0,
+      firstRoundCorrect: T.firstRoundCorrect || 0,
+      wordPool: (T.wordPool || []).map(w => w.id),
+      roundErrMap: T.roundErrMap || {},
+      batchSettled: !!T.batchSettled,
+      reviewPool: (T.reviewPool || []).map(w => w.id),
+      reviewWrong: (T.reviewWrong || []).map(w => w.id),
+      reviewSpellMode: T.reviewSpellMode || '',
+      reviewSpellPool: (T.reviewSpellPool || []).map(w => w.id),
+    };
+    localStorage.setItem(TEST_PROGRESS_KEY, JSON.stringify(snap));
+  } catch (e) { console.warn('保存测试进度失败', e); }
+}
+
+function clearTestProgress() {
+  try { localStorage.removeItem(TEST_PROGRESS_KEY); } catch (e) {}
+}
+
+function loadTestProgress() {
+  try {
+    const raw = localStorage.getItem(TEST_PROGRESS_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || s.v !== 1 || !Array.isArray(s.tasks) || !s.tasks.length) return null;
+    return s;
+  } catch (e) { return null; }
+}
+
+function restoreTestProgress(s) {
+  if (!s || !s.tasks || !s.tasks.length) return false;
+  const byId = new Map(S.words.map(w => [w.id, w]));
+  const pick = ids => (ids || []).map(id => byId.get(id)).filter(Boolean);
+
+  const tasks = s.tasks.map(t => ({ word: byId.get(t.wid), stage: t.stage })).filter(t => t.word);
+  if (!tasks.length) return false;
+
+  T.mode = s.mode || 'learn';
+  T.batches = (s.batches || []).map(b => pick(b));
+  T.batchIdx = s.batchIdx || 0;
+  T.tasks = tasks;
+  T.taskIdx = Math.min(Math.max(s.taskIdx || 0, 0), tasks.length - 1);
+  T.round = s.round || 1;
+  T.roundWrong = pick(s.roundWrong);
+  T.firstRoundTotal = s.firstRoundTotal || tasks.length;
+  T.firstRoundCorrect = s.firstRoundCorrect || 0;
+  T.answered = false;
+  T.wordPool = pick(s.wordPool);
+  T.roundErrMap = s.roundErrMap || {};
+  T.batchSettled = !!s.batchSettled;
+  T.reviewPool = pick(s.reviewPool);
+  T.reviewWrong = pick(s.reviewWrong);
+  T.reviewSpellMode = s.reviewSpellMode || '';
+  T.reviewSpellPool = pick(s.reviewSpellPool);
+
+  $('#testSetup').hidden = true;
+  $('#testRun').hidden = false;
+  $('#testResult').hidden = true;
+  renderQuestion();
+  return true;
+}
+
+/* 顶部「退出」按钮的显隐（仅测试进行中显示） */
+function updateExitButton() {
+  const btn = $('#btnExitTest');
+  if (!btn) return;
+  const inTest = S.view === 'test' && !$('#testRun').hidden;
+  btn.hidden = !inTest;
+}
+
 /* 按批次号重建该批次的任务队列（不依赖切片，避免被错题数组污染） */
 function buildBatchTasks(batchIdx) {
   const st = Object.assign({ choice: true, spell: true, reverse: true },
@@ -3099,6 +3314,7 @@ function endRound() {
 
 /* 批次之间的过渡页 */
 function showBatchBreak(batchNo, totalBatches) {
+  saveTestProgress();
   $('#testRun').innerHTML = `
     <div class="quiz-progress">第 ${batchNo - 1} 组完成</div>
     <div class="learn-card ok">
@@ -3133,6 +3349,7 @@ function showBatchBreak(batchNo, totalBatches) {
 }
 
 function showRoundBreak(count) {
+  saveTestProgress();
   const prevRound = T.round - 1;
   $('#testRun').innerHTML = `
     <div class="quiz-progress">第 ${prevRound} 轮完成</div>
@@ -3172,6 +3389,7 @@ function showRoundBreak(count) {
 
 /* 复习的选择题阶段结束 → 「全部完成」页 */
 function showReviewSummary() {
+  saveTestProgress();
   const pool = T.reviewPool || [];
   const wrong = T.reviewWrong || [];
   const acc = pool.length
@@ -3237,6 +3455,7 @@ function startReviewSpell(mode) {
 }
 
 function showResult() {
+  clearTestProgress();   // ★ 一轮正常结束 → 清档
   $('#testRun').hidden = true;
   $('#testResult').hidden = false;
   // 学习模式下，"重来"回到测试首页而不是重跑
@@ -3277,9 +3496,11 @@ function showResult() {
     else startReview();
   };
   $('#btnBackTestSetup').onclick = () => {
+    clearTestProgress();
     $('#testResult').hidden = true;
     $('#testRun').hidden = true;
     $('#testSetup').hidden = false;
+    updateExitButton();
     renderTestHome();
   };
   window.scrollTo(0, 0);
@@ -4919,12 +5140,59 @@ function bindEvents() {
   if (_btnLearn) _btnLearn.addEventListener('click', () => {
     Speech.warmup();
     startLearn();
+    updateExitButton();
   });
   const _btnReview = $('#btnStartReview');
   if (_btnReview) _btnReview.addEventListener('click', () => {
     Speech.warmup();
     startReview();
+    updateExitButton();
   });
+
+  // ── 顶部「退出测试」按钮 ──
+  const _btnExitTest = $('#btnExitTest');
+  if (_btnExitTest) {
+    _btnExitTest.addEventListener('click', () => {
+      openConfirm('退出测试', '退出后本次进度会清空，确定吗？', () => {
+        clearTestProgress();
+        S.savedTestProgress = null;
+        T.mode = '';
+        T.tasks = [];
+        T.taskIdx = 0;
+        $('#testRun').hidden = true;
+        $('#testResult').hidden = true;
+        $('#testSetup').hidden = false;
+        updateExitButton();
+        renderTestHome();
+      });
+    });
+  }
+
+  // ── 「继续上次进度」横幅按钮 ──
+  const _rcBtn = $('#resumeContinue');
+  if (_rcBtn) {
+    _rcBtn.addEventListener('click', () => {
+      if (S.savedTestProgress && restoreTestProgress(S.savedTestProgress)) {
+        S.savedTestProgress = null;
+        updateExitButton();
+      } else {
+        toast('上次的进度已失效', 'warn');
+        clearTestProgress();
+        S.savedTestProgress = null;
+        renderTestHome();
+      }
+    });
+  }
+  const _rdBtn = $('#resumeDiscard');
+  if (_rdBtn) {
+    _rdBtn.addEventListener('click', () => {
+      openConfirm('放弃进度', '确定放弃上次未完成的学习？', () => {
+        clearTestProgress();
+        S.savedTestProgress = null;
+        renderTestHome();
+      });
+    });
+  }
 
   // ── 查词页 ──
   const _lkIn = $('#lookupInput');
@@ -5135,7 +5403,10 @@ async function boot() {
     // 预生成图片 URL
     S.images.forEach(im => { if (im.blob) S.urls.set(im.id, URL.createObjectURL(im.blob)); });
 
-    // ★ 一次性迁移：老词没有 learnProgress 字段 → 补为 0（视为未学习，需重新走一遍 4 环节）
+    // ★ 断点续传：读取上次测试的存档
+    S.savedTestProgress = loadTestProgress();
+
+    // ★ 一次性迁移：老词没有 learnProgress 字段 → 补为 0
     for (const w of S.words) {
       if (w.srs && w.srs.learnProgress === undefined) {
         w.srs.learnProgress = 0;

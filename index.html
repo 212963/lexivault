@@ -3455,7 +3455,8 @@ function startReviewSpell(mode) {
 }
 
 function showResult() {
-  clearTestProgress();   // ★ 一轮正常结束 → 清档
+  clearTestProgress();           // ★ 一轮正常结束 → 清 localStorage
+  S.savedTestProgress = null;    // ★ 同时清内存副本，否则测试首页还会显示「继续上次进度」
   $('#testRun').hidden = true;
   $('#testResult').hidden = false;
   // 学习模式下，"重来"回到测试首页而不是重跑
@@ -4893,6 +4894,8 @@ async function clearAllData() {
   if (!confirm('清空手机上的所有数据？\n\n包括单词、图片、文章、设置。\n此操作不可恢复。')) return;
   if (!confirm('再次确认：真的要清空吗？')) return;
   await Promise.all([DB.clear('words'), DB.clear('images'), DB.clear('articles')]);
+  clearTestProgress();               // ★ 顺便清掉测试进度存档
+  S.savedTestProgress = null;
   S.urls.forEach(u => URL.revokeObjectURL(u));
   S.urls.clear();
   S.words = []; S.images = []; S.articles = [];

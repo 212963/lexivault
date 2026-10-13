@@ -2308,14 +2308,8 @@ function retColor(r) {
      （说明完整走过一遍 4 环节）才算学完，否则视为未学习 */
 function learningProgressOf(word) {
   if (!word.srs) return 0;
-  if (word.srs.learnProgress !== undefined) return word.srs.learnProgress;
-  // 老词兼容
-  if (word.srs.lastReview &&
-      Array.isArray(word.srs.reviews) &&
-      word.srs.reviews.length >= 4) {
-    return 1;
-  }
-  return 0;
+  if (word.srs.learnProgress === undefined) return 0;   // 没记录 = 未学习
+  return word.srs.learnProgress;
 }
 /* 学习进度对应的颜色：绿=学完 / 橙=学过但没全对 / 灰=未开始 */
 function progColor(p) {
@@ -5140,6 +5134,14 @@ async function boot() {
     S.articles = a;
     // 预生成图片 URL
     S.images.forEach(im => { if (im.blob) S.urls.set(im.id, URL.createObjectURL(im.blob)); });
+
+    // ★ 一次性迁移：老词没有 learnProgress 字段 → 补为 0（视为未学习，需重新走一遍 4 环节）
+    for (const w of S.words) {
+      if (w.srs && w.srs.learnProgress === undefined) {
+        w.srs.learnProgress = 0;
+        try { await DB.put('words', w); } catch (e) {}
+      }
+    }
   } catch (e) {
     console.error('数据加载失败', e);
     toast('本地数据加载失败（可能是隐私模式）', 'err');

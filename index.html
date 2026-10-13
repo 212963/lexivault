@@ -3098,14 +3098,13 @@ function showLearnCard(word, ok) {
   $('#testRun').innerHTML = `
     <div class="quiz-progress">${progressText}</div>
     <div class="learn-card ${ok ? 'ok' : 'bad'}">
-      <div class="lc-badge">${ok ? '🎉 答对了' : '📖 记一下'}</div>
       ${imgUrl ? `<img class="lc-img" src="${imgUrl}" alt="">` : ''}
       <div class="lc-word">${esc(w.text)}</div>
       ${w.phonetic ? `<div class="lc-phonetic">${esc(w.phonetic)}</div>` : ''}
       <div class="lc-meanings">${meaningHtml}</div>
+      <button class="btn primary block lg" id="lcNextBtn" style="margin-top:4px">下一题</button>
       ${phrasesBlock}
       ${sentencesBlock}
-      <button class="btn primary block lg" id="lcNextBtn" style="margin-top:14px">下一题</button>
     </div>`;
 
   if (_learnEnterHandler) {

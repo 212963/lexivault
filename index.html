@@ -596,6 +596,25 @@ label:first-of-type{margin-top:0}
   background:rgba(var(--accent-rgb),.14);
 }
 
+/* 查词卡片上的「＋ 加到词库」按钮 */
+.lk-add-btn{
+  flex-shrink:0;width:38px;height:38px;
+  border-radius:11px;
+  border:1px solid rgba(var(--accent-rgb),.3);
+  background:rgba(var(--accent-rgb),.12);
+  color:var(--accent);
+  font-family:inherit;font-size:22px;font-weight:700;line-height:1;
+  cursor:pointer;display:grid;place-items:center;
+  transition:all .2s var(--ease);
+  margin-left:4px;
+}
+.lk-add-btn:active{
+  transform:scale(.92);
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;border-color:transparent;
+  box-shadow:0 6px 18px -8px rgba(var(--accent-rgb),1);
+}
+
 /* ═══════════ 测试提示例句 ═══════════ */
 .hint-box{
   margin-top:12px;padding:11px 13px;border-radius:11px;
@@ -4039,6 +4058,7 @@ function renderDictResults(keyword, results) {
         ${entry.phonetic ? `<div class="lk-phon">${esc(entry.phonetic)}</div>` : ''}
         <div class="lk-mean">${meaningHtml}</div>
       </div>
+      <button type="button" class="lk-add-btn" data-add-word="${esc(entry.word)}" title="加到词库" aria-label="加到词库">＋</button>
     </div>`;
   }).join('');
 
@@ -4047,6 +4067,16 @@ function renderDictResults(keyword, results) {
       const map = Dict.getMap();
       const entry = map && map.get(String(card.dataset.word).toLowerCase());
       if (entry) openDictDetail(entry);
+    };
+  });
+
+  // ★ 加号按钮 → 一键填充到「新建」页
+  $$('.lk-add-btn', box).forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();   // 阻止冒泡，避免触发卡片本身的「打开详情」
+      const map = Dict.getMap();
+      const entry = map && map.get(String(btn.dataset.addWord).toLowerCase());
+      if (entry) fillCreateFromDict(entry);
     };
   });
 }
@@ -4222,6 +4252,53 @@ function parseApiHzMeanings(raw) {
     if (t) out.push({ pos: p.pos, text: t });
   }
   return out;
+}
+
+/* 把词典条目一键填进「新建」页，并跳转过去
+   entry 结构：{ word, phonetic, meanings: [{pos, text}], phrases: [{phrase, translation}] } */
+function fillCreateFromDict(entry) {
+  if (!entry) return;
+  const word = String(entry.word || '').trim();
+  if (!word) return;
+
+  // 词库已有 → 提示（但仍然填充，用户可自行决定是否覆盖/编辑）
+  const dup = S.words.some(w => (w.text || '').toLowerCase() === word.toLowerCase());
+  if (dup) {
+    toast(`「${word}」已在词库中，仍已填到新建页`, 'warn');
+  } else {
+    toast(`已填充「${word}」，绑定图片即可保存`, 'ok');
+  }
+
+  // 1) 更新内存草稿 C
+  C.word = word;
+  C.phonetic = entry.phonetic || '';
+  const ms = Array.isArray(entry.meanings) ? entry.meanings : [];
+  C.meanings = ms.length
+    ? ms.map(m => ({ pos: m.pos || '', text: m.text || '' }))
+    : [{ pos: '', text: '' }];
+
+  // ★ 把词组拼成一条 phr. 释义，跟「📖 查词」按钮的行为保持一致
+  if (Array.isArray(entry.phrases) && entry.phrases.length) {
+    const phraseText = entry.phrases
+      .filter(p => p && p.phrase && p.translation)
+      .map(p => `${p.phrase}: ${p.translation}`)
+      .join('；');
+    if (phraseText) C.meanings.push({ pos: 'phr.', text: phraseText });
+  }
+
+  // 清空其它字段（避免继承上一次编辑的临时状态）
+  C.category = '';
+  C.sentence = '';
+  C.imageIds = [];
+
+  // 2) 更新 DOM 输入框（renderCreate 只渲染释义列表和图片网格，不填 input）
+  const t = $('#cwText');     if (t) t.value = C.word;
+  const p = $('#cwPhonetic'); if (p) p.value = C.phonetic;
+  const c = $('#cwCategory'); if (c) c.value = '';
+  const s = $('#cwSentence'); if (s) s.value = '';
+
+  renderCreate();
+  switchView('create');
 }
 
 /* 把 fetchWordInfo 的结果填进新建表单 */

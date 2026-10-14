@@ -699,8 +699,8 @@ body.test-mode .word-sheet{
   bottom:0;
 }
 body.test-mode .word-sheet-panel{
-  padding-top:calc(env(safe-area-inset-top,0px) + 10px);
-  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
+  padding-top:calc(var(--safe-top) + 6px);
+  padding-bottom:calc(var(--safe-bottom) + 12px);
 }
 /* ═══ 详情页（不背单词风格）═══ */
 .ws-head{
@@ -1278,13 +1278,29 @@ body.test-mode .word-sheet-panel{
 /* ═══════════ 复习选择题 ═══════════ */
 .choice-grid{display:flex;flex-direction:column;gap:10px;margin-top:14px}
 .choice-opt{
-  padding:14px 16px;border-radius:12px;
+  padding:14px 18px;border-radius:14px;
   border:2px solid var(--border);
   background:rgba(var(--text-rgb),.04);
-  color:var(--text);font-family:inherit;font-size:14.5px;font-weight:600;
+  color:var(--text);font-family:inherit;
   cursor:pointer;text-align:left;transition:all .2s var(--ease);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  min-height:48px;
+  min-height:64px;
+  display:block;
+  line-height:1.45;
+}
+.choice-opt .co-pos{
+  display:block;
+  font-size:13px;
+  font-style:italic;
+  color:var(--muted);
+  margin-bottom:4px;
+  font-weight:600;
+}
+.choice-opt .co-text{
+  display:block;
+  font-size:17.5px;
+  font-weight:600;
+  color:var(--text);
+  word-break:break-word;
 }
 .choice-opt:active{transform:scale(.98)}
 .choice-opt.ok{
@@ -3513,18 +3529,28 @@ function buildOptions(word) {
   return shuffle(opts);
 }
 
-/* 复习选择题：1 个正确释义 + 3 个从词库随机抽的干扰释义 */
+/* 复习选择题：1 个正确释义 + 3 个从词库随机抽的干扰释义
+   每个选项拆成 { pos, text }，方便渲染成"词性一行 + 释义一行" */
 function buildReviewOptions(word) {
-  const plainOf = w => meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
-  const correctText = plainOf(word) || '（无释义）';
-  const opts = [{ text: correctText, correct: 1 }];
-  const used = new Set([correctText]);
+  // 从一条 meaning 里抽出 { pos, text }，优先选非词组的
+  const pickMeaning = w => {
+    const plain = getMeanings(w).filter(m => !isPhraseMeaning(m) && m.text && m.text.trim());
+    if (plain.length) return { pos: formatPos(plain[0].pos), text: plain[0].text.trim() };
+    const any = getMeanings(w).filter(m => m.text && m.text.trim());
+    if (any.length) return { pos: formatPos(any[0].pos), text: any[0].text.trim() };
+    return { pos: '', text: '（无释义）' };
+  };
+
+  const correct = pickMeaning(word);
+  const opts = [{ pos: correct.pos, text: correct.text, correct: 1 }];
+  const used = new Set([correct.text]);
+
   for (const o of shuffle(S.words)) {
     if (o.id === word.id) continue;
-    const t = plainOf(o);
-    if (!t || used.has(t)) continue;
-    used.add(t);
-    opts.push({ text: t, correct: 0 });
+    const m = pickMeaning(o);
+    if (!m.text || used.has(m.text)) continue;
+    used.add(m.text);
+    opts.push({ pos: m.pos, text: m.text, correct: 0 });
     if (opts.length === 4) break;
   }
   return shuffle(opts);
@@ -3736,7 +3762,10 @@ function renderQuestion() {
             ${w.phonetic ? `<div class="ws-phon" style="text-align:center;margin-top:2px">${esc(w.phonetic)}</div>` : ''}
           </div>
           <div class="choice-grid cz-choices">
-            ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">${esc(o.text)}</button>`).join('')}
+            ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">
+              ${o.pos ? `<span class="co-pos">${esc(o.pos)}</span>` : ''}
+              <span class="co-text">${esc(o.text)}</span>
+            </button>`).join('')}
           </div>
           <div class="quiz-feedback" id="quizFb"></div>
         </div>
@@ -3918,7 +3947,10 @@ function renderQuestion() {
         <div class="quiz-word">${esc(w.text)}</div>
         ${url ? `<img class="quiz-img" src="${url}" alt="" style="max-height:28vh;margin:10px auto;display:block">` : ''}
         <div class="choice-grid">
-          ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">${esc(o.text)}</button>`).join('')}
+          ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">
+            ${o.pos ? `<span class="co-pos">${esc(o.pos)}</span>` : ''}
+            <span class="co-text">${esc(o.text)}</span>
+          </button>`).join('')}
         </div>
         <div style="text-align:center;margin-top:12px">
           <button class="btn" id="btnReviewHint" style="font-size:13.5px;min-height:38px">💡 提示例句</button>

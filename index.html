@@ -392,6 +392,19 @@ label:first-of-type{margin-top:0}
 /* ★ 测试模式下卡片铺满，图片组沉底 */
 body.test-mode #testRun > .quiz-card{
   padding:20px 18px 18px;
+  overflow:hidden;
+}
+/* ★ 学习卡：内容区可滚动，底部按钮固定 */
+.lc-scroll-body{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:4px;
+}
+.lc-next-fixed{
+  flex-shrink:0;
+  margin-top:14px;
 }
 .quiz-img{
   width:100%;max-height:28vh;object-fit:contain;
@@ -676,6 +689,33 @@ body.test-mode #testRun > .quiz-card{
   border-bottom:1px dashed var(--border);
 }
 .ws-mean-row:last-child{border-bottom:none;padding-bottom:0}
+
+/* ★ 词性贴近释义：min-width 从 44px 缩到 30px */
+.ws-pos{
+  flex-shrink:0;font-style:italic;font-weight:800;
+  color:var(--accent);font-size:14px;
+  min-width:30px;
+  padding-right:2px;
+}
+
+/* ★ 标题颜色加深 + 间距收紧 */
+.ws-section-title{
+  font-size:13px;font-weight:800;letter-spacing:.6px;
+  color:var(--text);margin-bottom:6px;
+}
+/* ★ 可折叠标题 */
+.ws-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.ws-toggle-arrow{
+  font-size:11px;color:var(--muted);
+  transition:transform .2s var(--ease);
+}
+.ws-toggle.open .ws-toggle-arrow{transform:rotate(90deg)}
+/* ★ 词组折叠列表 */
+.ws-phrase-list{padding-top:2px}
 .ws-pos{
   flex-shrink:0;font-style:italic;font-weight:800;
   color:var(--accent);font-size:14px;
@@ -2946,6 +2986,13 @@ function getMeanings(word) {
   if (word.meaning) return [{ pos: '', text: word.meaning }];
   return [];
 }
+/* 词性补点：n → n. / vt → vt.；已有点的保持不变 */
+function formatPos(p) {
+  const s = String(p || '').trim();
+  if (!s) return '';
+  return /\.$/.test(s) ? s : s + '.';
+}
+
 function meaningsToString(arr) {
   return (arr || []).filter(m => m && m.text && m.text.trim())
     .map(m => (m.pos ? `[${m.pos}] ` : '') + m.text.trim())
@@ -4013,7 +4060,7 @@ function renderWordSheetHTML(w) {
   const meaningHtml = plainMeanings.length
     ? plainMeanings.map(m => `
         <div class="ws-mean-row">
-          ${m.pos ? `<span class="ws-pos">${esc(m.pos)}</span>` : '<span class="ws-pos"></span>'}
+          <span class="ws-pos">${esc(formatPos(m.pos))}</span>
           <span class="ws-text">${esc(m.text)}</span>
         </div>`).join('')
     : '<div class="ws-mean-row"><span class="ws-pos"></span><span class="ws-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
@@ -4106,7 +4153,7 @@ function showLearnCard(word, ok) {
   const meaningHtml = plainMeanings.length
     ? plainMeanings.map(m => `
         <div class="ws-mean-row">
-          ${m.pos ? `<span class="ws-pos">${esc(m.pos)}</span>` : '<span class="ws-pos"></span>'}
+          <span class="ws-pos">${esc(formatPos(m.pos))}</span>
           <span class="ws-text">${esc(m.text)}</span>
         </div>`).join('')
     : '<div class="ws-mean-row"><span class="ws-pos"></span><span class="ws-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
@@ -4128,8 +4175,13 @@ function showLearnCard(word, ok) {
 
   const phrasesHtml = phrases.length ? `
     <div class="ws-section">
-      <div class="ws-section-title">词组搭配</div>
-      ${phrases.map(p => `<div class="ws-phrase">${esc(p)}</div>`).join('')}
+      <div class="ws-section-title ws-toggle" id="lcPhrasesToggle">
+        <span>词组搭配</span>
+        <span class="ws-toggle-arrow">▸</span>
+      </div>
+      <div class="ws-phrase-list" id="lcPhrasesList" hidden>
+        ${phrases.map(p => `<div class="ws-phrase">${esc(p)}</div>`).join('')}
+      </div>
     </div>` : '';
 
   const imgHtml = imgUrl ? `
@@ -4141,19 +4193,32 @@ function showLearnCard(word, ok) {
   $('#testRun').innerHTML = `
     <div class="quiz-progress">${progressText}</div>
     <div class="quiz-card" style="padding:20px 18px">
-      <div class="ws-head">
-        <div class="ws-word-wrap">
-          <div class="ws-word">${esc(w.text)}</div>
-          ${w.phonetic ? `<div class="ws-phon">${esc(w.phonetic)}</div>` : ''}
+      <div class="lc-scroll-body">
+        <div class="ws-head">
+          <div class="ws-word-wrap">
+            <div class="ws-word">${esc(w.text)}</div>
+            ${w.phonetic ? `<div class="ws-phon">${esc(w.phonetic)}</div>` : ''}
+          </div>
+          <button class="ws-speak" id="lcSpeak" title="发音">🔊</button>
         </div>
-        <button class="ws-speak" id="lcSpeak" title="发音">🔊</button>
+        <div class="ws-meanings">${meaningHtml}</div>
+        ${sentenceHtml}
+        ${phrasesHtml}
+        ${imgHtml}
       </div>
-      <div class="ws-meanings">${meaningHtml}</div>
-      ${sentenceHtml}
-      ${phrasesHtml}
-      ${imgHtml}
-      <button class="btn primary block lg" id="lcNextBtn" style="margin-top:20px">下一题</button>
+      <button class="btn primary block lg lc-next-fixed" id="lcNextBtn">下一题</button>
     </div>`;
+
+  // ★ 词组折叠
+  const toggleEl = $('#lcPhrasesToggle');
+  const listEl = $('#lcPhrasesList');
+  if (toggleEl && listEl) {
+    toggleEl.onclick = () => {
+      const open = !listEl.hidden;
+      listEl.hidden = open;
+      toggleEl.classList.toggle('open', !open);
+    };
+  }
 
   if (_learnEnterHandler) {
     document.removeEventListener('keydown', _learnEnterHandler);

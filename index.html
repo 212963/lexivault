@@ -3405,9 +3405,18 @@ function buildLearnSession() {
     batches.push(pool.slice(i, i + LEARN_BATCH_SIZE));
   }
 
+  // ★ 直接构建第一批任务（不能调 buildBatchTasks：它读的是 T.batches，此刻还没赋值）
+  const firstBatch = batches[0] || [];
+  const tasks = [];
+  for (const word of firstBatch) {
+    for (const stage of LEARN_STAGES) {
+      tasks.push({ word, stage });
+    }
+  }
+
   return {
     batches,
-    tasks: buildBatchTasks(0),
+    tasks,
     wordPool: pool,
   };
 }

@@ -328,11 +328,27 @@ label:first-of-type{margin-top:0}
 }
 .quiz-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .quiz-opt{
+  position:relative;
   border:3px solid transparent;border-radius:14px;overflow:hidden;
   cursor:pointer;aspect-ratio:1;background:rgba(var(--text-rgb),.05);
   transition:all .22s var(--ease);padding:0;
 }
 .quiz-opt img{width:100%;height:100%;object-fit:cover;display:block}
+/* 图片底部的释义条（百词斩风格） */
+.quiz-opt-cap{
+  position:absolute;left:0;right:0;bottom:0;
+  padding:6px 9px 7px;
+  background:linear-gradient(to top,
+    rgba(0,0,0,.88) 0%,
+    rgba(0,0,0,.72) 55%,
+    rgba(0,0,0,.32) 85%,
+    rgba(0,0,0,0) 100%);
+  color:#fff;font-size:11.5px;font-weight:600;line-height:1.35;
+  text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  pointer-events:none;
+  text-shadow:0 1px 2px rgba(0,0,0,.5);
+}
 .quiz-opt:active{transform:scale(.97)}
 .quiz-opt.ok{border-color:#3ddc97;box-shadow:0 0 0 4px rgba(61,220,151,.22)}
 .quiz-opt.bad{border-color:#ff6b81;box-shadow:0 0 0 4px rgba(255,107,129,.22);opacity:.6}
@@ -3059,17 +3075,20 @@ function renderTestHome() {
   renderRing();
 }
 
+/* 返回 [{word, imgId}, ...]：1 个正确 + 3 个干扰，各带自己的单词对象
+   （用于图片底部显示对应释义） */
 function buildOptions(word) {
   const others = S.words.filter(x => x.id !== word.id && x.imageIds && x.imageIds.length);
   const used = new Set(word.imageIds);
-  const picks = [];
+  const opts = [{ word, imgId: word.imageIds[0] }];
   for (const o of shuffle(others)) {
     const iid = o.imageIds[0];
     if (used.has(iid)) continue;
-    used.add(iid); picks.push(iid);
-    if (picks.length === 3) break;
+    used.add(iid);
+    opts.push({ word: o, imgId: iid });
+    if (opts.length === 4) break;
   }
-  return shuffle([word.imageIds[0], ...picks]);
+  return shuffle(opts);
 }
 
 /* 复习选择题：1 个正确释义 + 3 个从词库随机抽的干扰释义 */
@@ -3245,7 +3264,13 @@ function renderQuestion() {
           <button class="btn" id="btnExampleSpeak" style="font-size:13.5px;min-height:38px">🔊 再听一次</button>
         </div>
         <div class="quiz-grid">
-          ${opts.map(id => `<button class="quiz-opt" data-img="${id}"><img src="${imgURL(id)}" alt=""></button>`).join('')}
+          ${opts.map(o => {
+            const mt = meaningsToString(getMeanings(o.word));
+            return `<button class="quiz-opt" data-img="${o.imgId}">
+              <img src="${imgURL(o.imgId)}" alt="">
+              ${mt ? `<div class="quiz-opt-cap">${esc(mt)}</div>` : ''}
+            </button>`;
+          }).join('')}
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;
@@ -3284,7 +3309,13 @@ function renderQuestion() {
           <button class="btn" id="btnQuizSpeak" style="font-size:13.5px;min-height:38px">🔊 发音</button>
         </div>
         <div class="quiz-grid">
-          ${opts.map(id => `<button class="quiz-opt" data-img="${id}"><img src="${imgURL(id)}" alt=""></button>`).join('')}
+          ${opts.map(o => {
+            const mt = meaningsToString(getMeanings(o.word));
+            return `<button class="quiz-opt" data-img="${o.imgId}">
+              <img src="${imgURL(o.imgId)}" alt="">
+              ${mt ? `<div class="quiz-opt-cap">${esc(mt)}</div>` : ''}
+            </button>`;
+          }).join('')}
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;

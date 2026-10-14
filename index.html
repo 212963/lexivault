@@ -3538,8 +3538,87 @@ function bindSpellInput(word, stage) {
   };
 }
 
+/* ★ spell / reverse 单独处理（这两个分支曾经在文件里丢失） */
+function renderSpellOrReverse_task(t) {
+  const w = t.word;
+  const stage = t.stage;
+  T.answered = false;
+  const url = imgURL(w.imageIds[0]);
+  if (stage === 'spell') {
+    const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
+    $('#testRun').innerHTML = `
+      <div class="quiz-card slide-in" style="padding:14px">
+        <div class="spell-img-wrap">
+          <img src="${url}" alt="">
+          ${capText ? `<div class="spell-img-cap">${esc(capText)}</div>` : ''}
+        </div>
+        <input class="spell-input-bare" id="spellInput" style="margin-top:16px"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               inputmode="text" enterkeyhint="done">
+        <div style="text-align:center;margin-top:12px">
+          <button type="button" id="btnSpellHint"
+                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示音标</button>
+        </div>
+        <div id="spellHintWrap"></div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
+    bindSpellInput(w, 'spell');
+    $('#btnSpellHint').onclick = () => {
+      const wrap = $('#spellHintWrap');
+      if (!wrap) return;
+      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+      wrap.innerHTML = w.phonetic
+        ? `<div class="lc-phonetic" style="text-align:center;margin-top:4px">${esc(w.phonetic)}</div>`
+        : '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:4px">这个词没有音标</div>';
+    };
+    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
+  } else {
+    const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
+    const meaning = plainMeanings.map(m =>
+      (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
+    ).join('；');
+    $('#testRun').innerHTML = `
+      <div class="quiz-card slide-in" style="padding:26px 20px 20px">
+        <input class="spell-input-bare" id="spellInput"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               inputmode="text" enterkeyhint="done">
+        <div class="spell-rev-zh">${meaning || '（无释义）'}</div>
+        <div style="text-align:center;margin-top:14px">
+          <button type="button" id="btnRevHint"
+                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示例句</button>
+        </div>
+        <div id="revHintWrap"></div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
+    bindSpellInput(w, 'reverse');
+    $('#btnRevHint').onclick = () => {
+      const wrap = $('#revHintWrap');
+      if (!wrap) return;
+      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+      const sents = splitWordSentences(w);
+      if (!sents.length) {
+        wrap.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:10px">这个词没有例句</div>';
+        return;
+      }
+      const { en } = splitSentenceLine(sents[0]);
+      wrap.innerHTML = `<div class="example-sentence" style="text-align:center;margin-top:10px">${highlightWordInText(en, w.text)}</div>`;
+    };
+  }
+  ensureQuizTopbar({ detail: true });
+}
+
 function renderQuestion() {
   if (T.taskIdx >= T.tasks.length) return endRound();
+
+  // ★ 拦截 spell / reverse：这两个题型走独立函数
+  {
+    const _t = T.tasks[T.taskIdx];
+    if (_t && (_t.stage === 'spell' || _t.stage === 'reverse')) {
+      renderSpellOrReverse_task(_t);
+      return;
+    }
+  }
+
   saveTestProgress();   // ★ 每次切题都自动存档
 
   const task = T.tasks[T.taskIdx];

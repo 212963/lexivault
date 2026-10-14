@@ -374,11 +374,15 @@ label:first-of-type{margin-top:0}
 
 /* ═══════════ 全屏单词详情（下滑打开 / 上滑关闭） ═══════════ */
 .word-sheet{
-  position:fixed;inset:0;z-index:9997;
+  position:fixed;
+  left:0;right:0;
+  top:var(--topbar-actual-h, 100px);                      /* 顶部栏下方 */
+  bottom:calc(var(--tabbar-h) + var(--safe-bottom));      /* 底部导航上方 */
+  z-index:9997;
   background:var(--bg);
   display:flex;flex-direction:column;
   opacity:0;pointer-events:none;
-  transform:translateY(30px);
+  transform:translateY(20px);
   transition:opacity .3s var(--ease),transform .34s cubic-bezier(.22,1,.36,1);
 }
 .word-sheet.open{opacity:1;pointer-events:auto;transform:translateY(0)}
@@ -387,7 +391,7 @@ label:first-of-type{margin-top:0}
   width:100%;max-width:640px;
   margin:0 auto;
   overflow-y:auto;
-  padding:calc(var(--safe-top) + 22px) 18px calc(30px + var(--safe-bottom));
+  padding:16px 18px 28px;
   overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
 }
@@ -2250,6 +2254,9 @@ function switchView(name) {
     _learnEnterHandler = null;
   }
   S.view = name;
+  // ★ 切页时强制关闭详情页，避免残留遮挡
+  const _ws = document.getElementById('wordSheet');
+  if (_ws) _ws.classList.remove('open');
   $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   const [t, sub] = VIEW_META[name];
@@ -3535,8 +3542,14 @@ function renderWordSheetHTML(w) {
 function bindPullHandle(word) {
   const testRun = $('#testRun');
   const sheet = $('#wordSheet');
-  const panel = $('#wordSheetPanel');
   if (!testRun || !sheet) return;
+
+  // ★ 测量顶部栏真实高度，把详情页精确顶到它下方
+  const topbarEl = document.querySelector('.topbar');
+  if (topbarEl) {
+    const h = topbarEl.getBoundingClientRect().height;
+    if (h > 0) document.documentElement.style.setProperty('--topbar-actual-h', h + 'px');
+  }
 
   const open = () => sheet.classList.add('open');
   const close = () => sheet.classList.remove('open');
@@ -3555,23 +3568,6 @@ function bindPullHandle(word) {
   }, { passive: true });
   testRun.addEventListener('touchend', () => { armed = false; }, { passive: true });
   testRun.addEventListener('touchcancel', () => { armed = false; }, { passive: true });
-
-  // ── 详情页：在顶部向上滑 → 关闭 ──
-  if (panel) {
-    let sY2 = 0, armed2 = false;
-    panel.addEventListener('touchstart', e => {
-      if (panel.scrollTop > 4) return;
-      sY2 = e.touches[0].clientY;
-      armed2 = true;
-    }, { passive: true });
-    panel.addEventListener('touchmove', e => {
-      if (!armed2) return;
-      const dy = e.touches[0].clientY - sY2;
-      if (dy < -60) { close(); armed2 = false; }
-    }, { passive: true });
-    panel.addEventListener('touchend', () => { armed2 = false; }, { passive: true });
-    panel.addEventListener('touchcancel', () => { armed2 = false; }, { passive: true });
-  }
 
   // ── 「收起」按钮 ──
   const closeBtn = $('#wordSheetClose');

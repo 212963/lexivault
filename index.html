@@ -359,53 +359,9 @@ label:first-of-type{margin-top:0}
 .img-actions .btn svg{width:18px;height:18px}
 
 /* ═══════════ 测试 ═══════════ */
-.chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.chip{
-  padding:9px 15px;border-radius:11px;border:1px solid var(--border);
-  background:rgba(var(--text-rgb),.04);color:var(--muted);
-  font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
-  transition:all .2s var(--ease);min-height:40px;
-}
-.chip:active{transform:scale(.95)}
-.chip.on{
-  background:linear-gradient(135deg,var(--accent),var(--accent2));
-  color:#fff;border-color:transparent;
-  box-shadow:0 6px 18px -8px rgba(var(--accent-rgb),1);
-}
-.test-info{
-  padding:14px 16px;border-radius:14px;font-size:13.5px;
-  background:rgba(var(--accent-rgb),.09);
-  border:1px solid rgba(var(--accent-rgb),.22);
-  color:var(--text);line-height:1.7;margin-bottom:14px;
-}
-.test-info b{color:var(--accent)}
 .quiz-progress{
   text-align:center;font-size:12.5px;color:var(--muted);
   letter-spacing:1.2px;margin-bottom:14px;font-weight:600;
-}
-/* 进度条 + 详情按钮 同行 */
-.quiz-header{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:10px;margin-bottom:14px;
-}
-.quiz-header .quiz-progress{
-  margin:0;flex:1;min-width:0;text-align:left;padding-left:2px;
-}
-.quiz-detail-btn{
-  flex-shrink:0;
-  display:inline-flex;align-items:center;gap:5px;
-  padding:7px 13px;border-radius:10px;
-  border:1px solid var(--border);
-  background:rgba(var(--text-rgb),.05);color:var(--muted);
-  font-family:inherit;font-size:12.5px;font-weight:700;
-  cursor:pointer;transition:all .2s var(--ease);
-  min-height:34px;
-}
-.quiz-detail-btn:active{
-  transform:scale(.95);
-  background:rgba(var(--accent-rgb),.16);
-  color:var(--accent);
-  border-color:rgba(var(--accent-rgb),.4);
 }
 .quiz-card{
   padding:18px;border-radius:calc(var(--radius) + 4px);
@@ -460,65 +416,7 @@ body.test-mode #testRun > .quiz-card{
   text-shadow:0 1px 2px rgba(0,0,0,.55);
   pointer-events:none;
 }
-.spell-speak-btn{
-  position:absolute;top:8px;right:8px;
-  width:40px;height:40px;border-radius:12px;
-  background:rgba(0,0,0,.55);color:#fff;border:none;
-  display:grid;place-items:center;font-size:18px;
-  cursor:pointer;backdrop-filter:blur(8px);
-  -webkit-backdrop-filter:blur(8px);
-  transition:all .2s var(--ease);
-}
-.spell-speak-btn:active{transform:scale(.92);background:rgba(0,0,0,.75)}
-.spell-input{
-  width:100%;margin-top:16px;padding:16px;
-  text-align:center;font-size:24px;font-weight:800;
-  letter-spacing:.5px;border-radius:14px;border:2px solid var(--border);
-  background:rgba(var(--text-rgb),.05);color:var(--text);outline:none;
-  font-family:inherit;transition:all .25s var(--ease);-webkit-appearance:none;
-}
-.spell-input::placeholder{color:rgba(var(--text-rgb),.28);font-weight:600;font-size:15px;letter-spacing:1.5px}
-.spell-input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(var(--accent-rgb),.16)}
-.spell-input.ok{border-color:#3ddc97;box-shadow:0 0 0 4px rgba(61,220,151,.18)}
-.spell-input.bad{border-color:#ff6b81;box-shadow:0 0 0 4px rgba(255,107,129,.18);animation:shake .4s}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}
-.quiz-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:14px}
-
-/* 拼写题输入区：透明无边框、字大、位于题目卡下方 */
-.spell-fixed-bottom{
-  padding:22px 16px 30px;
-  background:transparent;
-  border:none;
-  z-index:1;
-}
-.spell-fixed-bottom[hidden]{display:none!important}
-.spell-fixed-bottom .spell-input{
-  margin:0;
-  background:transparent;
-  border:none;
-  box-shadow:none!important;
-  padding:14px 12px;
-  min-height:76px;
-  font-size:38px;
-  font-weight:800;
-  letter-spacing:5px;
-  text-align:center;
-  color:var(--text);
-  caret-color:var(--accent);
-  border-radius:0;
-  transition:color .2s var(--ease);
-}
-.spell-fixed-bottom .spell-input:focus{
-  border:none;
-  background:transparent;
-  box-shadow:none!important;
-}
-.spell-fixed-bottom .spell-input::placeholder{color:transparent}
-.spell-fixed-bottom .spell-input.ok{color:#3ddc97}
-.spell-fixed-bottom .spell-input.bad{
-  color:#ff6b81;
-  animation:shake .4s;
-}
 
 /* ═══ 拼写阶段（看图拼词 / 看中文拼英文）═══ */
 .spell-input-bare{
@@ -565,34 +463,6 @@ body.test-mode #testRun > .quiz-card{
   margin-right:4px;
 }
 
-/* 看中拼英文：底部两个并排按钮 */
-.rev-actions{
-  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;
-}
-
-/* 图片预览弹窗（模糊背景） */
-.img-preview-modal{
-  position:fixed;inset:0;z-index:9996;
-  background:rgba(0,0,0,.72);
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
-  display:none;align-items:center;justify-content:center;
-  padding:28px;
-  animation:fadeIn .22s var(--ease);
-}
-.img-preview-modal.open{display:flex}
-.img-preview-modal img{
-  max-width:100%;max-height:78vh;
-  border-radius:16px;
-  box-shadow:0 24px 60px -12px rgba(0,0,0,.85);
-  background:rgba(var(--text-rgb),.05);
-}
-.img-preview-tip{
-  position:absolute;bottom:calc(30px + var(--safe-bottom));
-  left:50%;transform:translateX(-50%);
-  font-size:12px;color:rgba(255,255,255,.7);
-  letter-spacing:.4px;
-}
 .quiz-word{
   font-size:38px;font-weight:800;text-align:center;
   letter-spacing:-.8px;margin:6px 0 10px;
@@ -793,33 +663,11 @@ body.test-mode .word-sheet-panel{
 .lc-badge{font-size:14px;font-weight:800;letter-spacing:.3px}
 .learn-card.ok .lc-badge{color:#3ddc97}
 .learn-card.bad .lc-badge{color:#ff6b81}
-.lc-img{
-  display:block;margin:0 auto;
-  width:100%;max-width:280px;max-height:26vh;object-fit:contain;
-  border-radius:var(--img-radius);background:rgba(var(--text-rgb),.04);
-}
-.lc-word{
-  font-size:36px;font-weight:800;letter-spacing:-1px;line-height:1.1;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));
-  -webkit-background-clip:text;background-clip:text;color:transparent;
-  text-align:center;word-break:break-all;
-}
 .lc-phonetic{
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   color:var(--muted);font-size:14px;margin-top:-4px;
   text-align:center;
 }
-.lc-meanings{width:100%;display:flex;flex-direction:column;gap:6px;margin-top:6px}
-.lc-mean-row{
-  display:flex;gap:9px;align-items:baseline;padding:9px 13px;border-radius:11px;
-  background:rgba(var(--text-rgb),.04);border:1px solid var(--border);
-}
-.lc-pos{
-  flex-shrink:0;padding:2px 8px;border-radius:6px;font-size:11px;
-  font-weight:800;font-style:italic;
-  background:rgba(var(--accent-rgb),.16);color:var(--accent);
-}
-.lc-text{font-size:14.5px;line-height:1.5}
 
 /* 结果页 */
 .result-stat{text-align:center;padding:8px 0 4px}
@@ -3658,18 +3506,6 @@ function bindSpellInput(word, stage) {
   inp.onkeydown = e => {
     if (e.key === 'Enter') { e.preventDefault(); submitSpell(); }
   };
-}
-/* 懒创建图片预览弹窗 */
-function ensureImgPreviewModal() {
-  let m = document.getElementById('imgPreviewModal');
-  if (m) return m;
-  m = document.createElement('div');
-  m.id = 'imgPreviewModal';
-  m.className = 'img-preview-modal';
-  m.innerHTML = `<img id="imgPreviewImg" src="" alt=""><div class="img-preview-tip">点击任意处关闭</div>`;
-  document.body.appendChild(m);
-  m.addEventListener('click', () => m.classList.remove('open'));
-  return m;
 }
 
 function renderQuestion() {

@@ -1160,6 +1160,8 @@ body.test-mode .word-sheet-panel{
   min-height:64px;
   display:block;
   line-height:1.45;
+  overflow:hidden;
+  width:100%;
 }
 .choice-opt .co-pos{
   display:block;
@@ -1174,7 +1176,9 @@ body.test-mode .word-sheet-panel{
   font-size:17.5px;
   font-weight:600;
   color:var(--text);
-  word-break:break-word;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .choice-opt:active{transform:scale(.98)}
 .choice-opt.ok{
@@ -3434,7 +3438,7 @@ function buildReviewOptions(word) {
    ══════════════════════════════════════════════ */
 const LEARN_BATCH_SIZE = 10;
 /* 学习阶段的 5 步，顺序不能改 */
-const LEARN_STAGES = ['example', 'choice-zh', 'choice', 'self-sentence'];
+const LEARN_STAGES = ['example', 'choice-zh', 'choice', 'self-sentence', 'spell', 'reverse'];
 
 /* 按 20 词一组，把未学习词切分 */
 function getUnlearnedWords() {
@@ -3455,8 +3459,8 @@ function buildLearnSession() {
   // ★ 直接构建第一批任务（不能调 buildBatchTasks：它读的是 T.batches，此刻还没赋值）
   const firstBatch = batches[0] || [];
   const tasks = [];
-  for (const word of firstBatch) {
-    for (const stage of LEARN_STAGES) {
+  for (const stage of LEARN_STAGES) {
+    for (const word of firstBatch) {
       tasks.push({ word, stage });
     }
   }
@@ -3877,6 +3881,36 @@ function finishQuestion(ok, word) {
       return;
     }
 
+    // 拼写两步（spell / reverse）：答错才弹学习卡
+    if (stage === 'spell' || stage === 'reverse') {
+      if (ok) T.firstRoundCorrect++;
+      if (T.round === 1) T.firstRoundTotal++;
+      if (!ok) {
+        T.roundWrong.push(word);
+        T.roundErrMap[word.id] = (T.roundErrMap[word.id] || 0) + 1;
+      }
+      gradeWord(word, ok);
+      const fb = $('#quizFb');
+      if (fb && !ok) {
+        fb.className = 'quiz-feedback bad';
+        fb.textContent = `✗ 正确答案：${word.text}`;
+      }
+      if (!ok) {
+        Speech.speak(word.text);
+        setTimeout(() => showLearnCard(word, ok), 700);
+      } else {
+        const card = $('.quiz-card');
+        if (card) {
+          card.classList.add('slide-out');
+          setTimeout(() => { T.taskIdx++; renderQuestion(); }, 260);
+        } else {
+          T.taskIdx++;
+          renderQuestion();
+        }
+      }
+      return;
+    }
+
     // 前 3 步（example / choice-zh / choice）：无论对错都弹学习卡
     const fb = $('#quizFb');
     if (fb && !ok) {
@@ -4238,8 +4272,8 @@ function updateExitButton() {
 function buildBatchTasks(batchIdx) {
   const batch = T.batches[batchIdx] || [];
   const tasks = [];
-  for (const word of batch) {
-    for (const stage of LEARN_STAGES) {
+  for (const stage of LEARN_STAGES) {
+    for (const word of batch) {
       tasks.push({ word, stage });
     }
   }
@@ -4287,54 +4321,36 @@ function endRound() {
 
   if (T.mode !== 'learn') return showResult();
 
-  // ── 学习阶段结束 → 进入拼写阶段 ──
-  if (T.phase === 'learn') {
-    T.phase = 'spell';
-    T.tasks = buildSpellTasks(T.batchIdx);
+  // ── 整批 6 步走完 → 结算本批进度 ──
+  if (!T.batchSettled) {
+    settleBatchProgress();
+    T.batchSettled = true;
+  }
+
+  // 有错词 → 用「看中文拼英文」重测
+  if (T.roundWrong.length > 0) {
+    const wrongWords = dedupWords(T.roundWrong);
+    T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
+    T.taskIdx = 0;
+    T.round++;
+    T.roundWrong = [];
+    return showRoundBreak(wrongWords.length);
+  }
+
+  // 无错词 → 下一批
+  const nextBatchIdx = T.batchIdx + 1;
+  if (nextBatchIdx < T.batches.length) {
+    T.batchIdx = nextBatchIdx;
+    T.tasks = buildBatchTasks(T.batchIdx);
     T.taskIdx = 0;
     T.round = 1;
-    T.roundWrong = [];
-    T.firstRoundTotal = 0;
-    T.firstRoundCorrect = 0;
     T.roundErrMap = {};
     T.batchSettled = false;
-    return showSpellBreak();
+    return showBatchBreak(nextBatchIdx + 1, T.batches.length);
   }
 
-  // ── 拼写阶段结束 ──
-  if (T.phase === 'spell') {
-    // 首轮拼写结束 → 结算本批进度
-    if (!T.batchSettled) {
-      settleBatchProgress();
-      T.batchSettled = true;
-    }
-
-    // 有错词 → 重测
-    if (T.roundWrong.length > 0) {
-      const wrongWords = dedupWords(T.roundWrong);
-      T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
-      T.taskIdx = 0;
-      T.round++;
-      T.roundWrong = [];
-      return showRoundBreak(wrongWords.length);
-    }
-
-    // 无错词 → 检查是否还有下一批
-    const nextBatchIdx = T.batchIdx + 1;
-    if (nextBatchIdx < T.batches.length) {
-      T.batchIdx = nextBatchIdx;
-      T.phase = 'learn';
-      T.tasks = buildBatchTasks(T.batchIdx);
-      T.taskIdx = 0;
-      T.round = 1;
-      T.roundErrMap = {};
-      T.batchSettled = false;
-      return showBatchBreak(nextBatchIdx + 1, T.batches.length);
-    }
-
-    // 全部完成
-    showResult();
-  }
+  // 全部完成
+  showResult();
 }
 
 /* 批次之间的过渡页 */

@@ -110,20 +110,43 @@ body.test-mode .quiz-grid{margin-top:auto}
 body.test-mode .quiz-card{position:relative}
 /* ★ 例句区域下移到卡片中上部 */
 body.test-mode .quiz-card > .example-sentence{margin-top:auto}
-/* ★ 返回按钮：无框、贴卡片左上角 */
-.quiz-back{
+/* ★ 卡片顶部工具条：返回（左）+ 详情（右） */
+.quiz-topbar{
   position:absolute;
-  top:2px;left:2px;
+  top:2px;left:2px;right:2px;
+  display:flex;justify-content:space-between;align-items:center;
+  z-index:5;
+  pointer-events:none;
+}
+.quiz-topbar > *{pointer-events:auto}
+.quiz-icon-btn{
   width:44px;height:44px;
   border:none;background:transparent;
   color:var(--muted);cursor:pointer;
   display:grid;place-items:center;padding:0;
-  z-index:5;
   transition:color .2s var(--ease),transform .2s var(--ease);
   -webkit-tap-highlight-color:transparent;
 }
-.quiz-back svg{width:22px;height:22px}
-.quiz-back:active{color:var(--accent);transform:scale(.92)}
+.quiz-icon-btn svg{width:22px;height:22px}
+.quiz-icon-btn:active{color:var(--accent);transform:scale(.92)}
+.quiz-icon-spacer{width:44px;height:44px}
+
+/* ★ 看词选中文：单词居中、选项靠下 */
+.cz-body{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+.cz-word-wrap{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding-top:8px;
+}
+.cz-choices{padding-bottom:16px}
 /* ★ 喇叭按钮：无框、只有图标、贴例句左下方 */
 .quiz-speak{
   border:none;
@@ -652,10 +675,32 @@ body.test-mode #testRun > .quiz-card{
   flex:1;
   width:100%;max-width:640px;
   margin:0 auto;
-  overflow-y:auto;
-  padding:16px 18px 28px;
+  padding:16px 18px 20px;
   overscroll-behavior:contain;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden;
+}
+.ws-scroll-body{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
   -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
+.ws-close-fixed{
+  flex-shrink:0;
+  margin-top:14px;
+}
+/* ★ 测试模式下：详情页全屏（顶天立地） */
+body.test-mode .word-sheet{
+  top:0;
+  bottom:0;
+}
+body.test-mode .word-sheet-panel{
+  padding-top:calc(env(safe-area-inset-top,0px) + 10px);
+  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
 }
 /* ═══ 详情页（不背单词风格）═══ */
 .ws-head{
@@ -3681,20 +3726,20 @@ function renderQuestion() {
     });
 
   } else if (stage === 'choice-zh') {
-    // 看英文选中文：4 个中文选项（模仿不背单词学习第一步）
+    // 看英文选中文：单词居中 + 4 中文选项靠下
     const opts = buildReviewOptions(w);
     $('#testRun').innerHTML = `
-      <div class="quiz-header">
-        <div class="quiz-progress">${progressText}</div>
-        <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
-      </div>
       <div class="quiz-card">
-        <div class="quiz-word">${esc(w.text)}</div>
-        ${w.phonetic ? `<div class="lc-phonetic" style="text-align:center;margin-top:-4px;margin-bottom:14px">${esc(w.phonetic)}</div>` : ''}
-        <div class="choice-grid">
-          ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">${esc(o.text)}</button>`).join('')}
+        <div class="cz-body">
+          <div class="cz-word-wrap">
+            <div class="quiz-word">${esc(w.text)}</div>
+            ${w.phonetic ? `<div class="ws-phon" style="text-align:center;margin-top:2px">${esc(w.phonetic)}</div>` : ''}
+          </div>
+          <div class="choice-grid cz-choices">
+            ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">${esc(o.text)}</button>`).join('')}
+          </div>
+          <div class="quiz-feedback" id="quizFb"></div>
         </div>
-        <div class="quiz-feedback" id="quizFb"></div>
       </div>
       ${renderWordSheetHTML(w)}`;
     bindPullHandle(w);
@@ -3713,10 +3758,6 @@ function renderQuestion() {
     const firstSent = sents[0] || '';
     const { en: hintEn } = splitSentenceLine(firstSent);
     $('#testRun').innerHTML = `
-      <div class="quiz-header">
-        <div class="quiz-progress">${progressText}</div>
-        <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
-      </div>
       <div class="quiz-card">
         <div class="quiz-word">${esc(w.text)}</div>
         <div id="hintWrap"></div>
@@ -3810,7 +3851,6 @@ function renderQuestion() {
   } else if (stage === 'spell') {
     const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
     $('#testRun').innerHTML = `
-      <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card slide-in" style="padding:14px">
         <div class="spell-img-wrap">
           <img src="${url}" alt="">
@@ -3843,7 +3883,6 @@ function renderQuestion() {
       (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
     ).join('；');
     $('#testRun').innerHTML = `
-      <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card slide-in" style="padding:26px 20px 20px">
         <input class="spell-input-bare" id="spellInput"
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
@@ -3897,27 +3936,40 @@ function renderQuestion() {
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
   }
 
-  // ★ 给当前题目卡注入返回按钮（无框、左上角）
-  ensureQuizBack();
+  // ★ 给当前题目卡注入顶部工具条（返回 + 详情）
+  const needDetail = ['choice-zh', 'choice', 'spell', 'reverse'].includes(stage);
+  ensureQuizTopbar({ detail: needDetail });
 }
 
-/* 在当前题目卡左上角注入返回按钮：点一下 → 保存进度 → 回测试首页 */
-function ensureQuizBack() {
+/* 在当前题目卡顶部注入工具条：返回（左）+ 详情（右，可选） */
+function ensureQuizTopbar(opts) {
+  opts = opts || {};
   const card = document.querySelector('#testRun .quiz-card');
   if (!card) return;
-  if (card.querySelector('.quiz-back')) return;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'quiz-back';
-  btn.id = 'btnQuizBack';
-  btn.title = '返回';
-  btn.setAttribute('aria-label', '返回');
-  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>';
-  btn.onclick = () => {
-    // 保存当前进度
+  if (card.querySelector('.quiz-topbar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'quiz-topbar';
+  const detailBtnHtml = opts.detail
+    ? `<button type="button" class="quiz-icon-btn" id="btnShowDetail" aria-label="详情" title="详情">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+         </svg>
+       </button>`
+    : '<div class="quiz-icon-spacer"></div>';
+  bar.innerHTML = `
+    <button type="button" class="quiz-icon-btn" id="btnQuizBack" aria-label="返回" title="返回">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    </button>
+    ${detailBtnHtml}
+  `;
+  card.insertBefore(bar, card.firstChild);
+
+  bar.querySelector('#btnQuizBack').onclick = () => {
     saveTestProgress();
     S.savedTestProgress = loadTestProgress();
-    // 回到测试首页
     $('#testRun').hidden = true;
     $('#testResult').hidden = true;
     $('#testSetup').hidden = false;
@@ -3925,7 +3977,13 @@ function ensureQuizBack() {
     renderTestHome();
     toast('已保存进度，下次可继续', 'ok');
   };
-  card.insertBefore(btn, card.firstChild);
+  const dBtn = bar.querySelector('#btnShowDetail');
+  if (dBtn) {
+    dBtn.onclick = () => {
+      const sheet = document.getElementById('wordSheet');
+      if (sheet) sheet.classList.add('open');
+    };
+  }
 }
 function submitSpell() {
   if (T.answered) return;
@@ -4068,8 +4126,13 @@ function renderWordSheetHTML(w) {
 
   const phrasesHtml = phrases.length ? `
     <div class="ws-section">
-      <div class="ws-section-title">词组搭配</div>
-      ${phrases.map(p => `<div class="ws-phrase">${esc(p)}</div>`).join('')}
+      <div class="ws-section-title ws-toggle" id="wsPhrasesToggle">
+        <span>词组搭配</span>
+        <span class="ws-toggle-arrow">▸</span>
+      </div>
+      <div class="ws-phrase-list" id="wsPhrasesList" hidden>
+        ${phrases.map(p => `<div class="ws-phrase">${esc(p)}</div>`).join('')}
+      </div>
     </div>` : '';
 
   const imgHtml = imgUrl ? `
@@ -4081,18 +4144,20 @@ function renderWordSheetHTML(w) {
   return `
     <div class="word-sheet" id="wordSheet">
       <div class="word-sheet-panel" id="wordSheetPanel">
-        <div class="ws-head">
-          <div class="ws-word-wrap">
-            <div class="ws-word">${esc(w.text)}</div>
-            ${w.phonetic ? `<div class="ws-phon">${esc(w.phonetic)}</div>` : ''}
+        <div class="ws-scroll-body">
+          <div class="ws-head">
+            <div class="ws-word-wrap">
+              <div class="ws-word">${esc(w.text)}</div>
+              ${w.phonetic ? `<div class="ws-phon">${esc(w.phonetic)}</div>` : ''}
+            </div>
+            <button class="ws-speak" id="wsSpeak" title="发音">🔊</button>
           </div>
-          <button class="ws-speak" id="wsSpeak" title="发音">🔊</button>
+          <div class="ws-meanings">${meaningHtml}</div>
+          ${sentenceHtml}
+          ${phrasesHtml}
+          ${imgHtml}
         </div>
-        <div class="ws-meanings">${meaningHtml}</div>
-        ${sentenceHtml}
-        ${phrasesHtml}
-        ${imgHtml}
-        <button class="btn primary block lg" id="wordSheetClose" style="margin-top:20px">收起</button>
+        <button class="btn primary block lg ws-close-fixed" id="wordSheetClose">收起</button>
       </div>
     </div>`;
 }
@@ -4122,6 +4187,17 @@ function bindPullHandle(word) {
   // 详情页里的大喇叭按钮
   const _wsSpeakBtn = $('#wsSpeak');
   if (_wsSpeakBtn) _wsSpeakBtn.onclick = () => Speech.speak(word.text);
+
+  // ★ 词组搭配折叠
+  const wsToggle = $('#wsPhrasesToggle');
+  const wsList = $('#wsPhrasesList');
+  if (wsToggle && wsList) {
+    wsToggle.onclick = () => {
+      const open = !wsList.hidden;
+      wsList.hidden = open;
+      wsToggle.classList.toggle('open', !open);
+    };
+  }
 }
 
 function showLearnCard(word, ok) {

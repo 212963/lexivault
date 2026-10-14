@@ -380,21 +380,41 @@ label:first-of-type{margin-top:0}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}
 .quiz-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:14px}
 
-/* 拼写题固定输入框（位于底部导航栏之上） */
+/* 拼写题输入区：透明无边框、字大、位于题目卡下方 */
 .spell-fixed-bottom{
-  position:fixed;left:0;right:0;
-  bottom:calc(var(--tabbar-h) + var(--safe-bottom));
-  padding:10px 16px 12px;
-  background:var(--bg);
-  border-top:1px solid var(--border);
-  z-index:15;
+  padding:22px 16px 30px;
+  background:transparent;
+  border:none;
+  z-index:1;
 }
 .spell-fixed-bottom[hidden]{display:none!important}
-.spell-fixed-bottom .spell-input{margin-top:0}
-
-/* 拼写模式：给滚动内容留出输入框空间 */
-#testRun.spell-mode{padding-bottom:0}
-#testRun.spell-mode > *:last-child{margin-bottom:76px}
+.spell-fixed-bottom .spell-input{
+  margin:0;
+  background:transparent;
+  border:none;
+  box-shadow:none!important;
+  padding:14px 12px;
+  min-height:76px;
+  font-size:38px;
+  font-weight:800;
+  letter-spacing:5px;
+  text-align:center;
+  color:var(--text);
+  caret-color:var(--accent);
+  border-radius:0;
+  transition:color .2s var(--ease);
+}
+.spell-fixed-bottom .spell-input:focus{
+  border:none;
+  background:transparent;
+  box-shadow:none!important;
+}
+.spell-fixed-bottom .spell-input::placeholder{color:transparent}
+.spell-fixed-bottom .spell-input.ok{color:#3ddc97}
+.spell-fixed-bottom .spell-input.bad{
+  color:#ff6b81;
+  animation:shake .4s;
+}
 
 /* 看中拼英文：底部两个并排按钮 */
 .rev-actions{
@@ -1490,7 +1510,7 @@ label:first-of-type{margin-top:0}
 
     <!-- ★ 拼写题固定输入框（始终在底部导航栏之上，不随题目刷新而移动） -->
     <div id="spellFixedWrap" class="spell-fixed-bottom" hidden>
-      <input class="spell-input" id="spellInput" placeholder="输入英文单词"
+      <input class="spell-input" id="spellInput"
              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
              inputmode="text" enterkeyhint="done">
     </div>
@@ -3384,12 +3404,10 @@ function renderQuestion() {
   const stage = task.stage;
   T.answered = false;
 
-  // ★ 拼写题：显示固定输入框；其余题型：隐藏
+  // ★ 拼写题：显示输入区；其余题型：隐藏
   const isSpell = (stage === 'spell' || stage === 'reverse');
   const fixedWrap = $('#spellFixedWrap');
   if (fixedWrap) fixedWrap.hidden = !isSpell;
-  const runEl = $('#testRun');
-  if (runEl) runEl.classList.toggle('spell-mode', isSpell);
   if (isSpell) {
     const inp = $('#spellInput');
     if (inp) inp.value = '';   // 新题清空

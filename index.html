@@ -416,6 +416,51 @@ label:first-of-type{margin-top:0}
   animation:shake .4s;
 }
 
+/* ═══ 拼写阶段（看图拼词 / 看中文拼英文）═══ */
+.spell-input-bare{
+  width:100%;
+  padding:10px 0;
+  text-align:center;
+  font-size:38px;
+  font-weight:800;
+  letter-spacing:4px;
+  border:none;
+  background:transparent;
+  color:var(--text);
+  caret-color:var(--accent);
+  outline:none;
+  font-family:inherit;
+  -webkit-appearance:none;
+  border-radius:0;
+}
+.spell-input-bare:focus{
+  border:none;
+  background:transparent;
+  box-shadow:none;
+  outline:none;
+}
+.spell-input-bare::placeholder{color:transparent}
+.spell-input-bare.ok{color:#3ddc97}
+.spell-input-bare.bad{
+  color:#ff6b81;
+  animation:shake .4s;
+}
+.spell-rev-zh{
+  text-align:center;
+  font-size:17px;
+  line-height:1.75;
+  color:var(--text);
+  padding:14px 12px 4px;
+  word-break:break-word;
+}
+.spell-rev-zh .rev-pos{
+  color:var(--accent);
+  font-style:italic;
+  font-weight:800;
+  font-size:13px;
+  margin-right:4px;
+}
+
 /* 看中拼英文：底部两个并排按钮 */
 .rev-actions{
   display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;
@@ -1579,13 +1624,6 @@ label:first-of-type{margin-top:0}
 
     <!-- 测试进行中 -->
     <div id="testRun" hidden></div>
-
-    <!-- ★ 拼写题固定输入框（始终在底部导航栏之上，不随题目刷新而移动） -->
-    <div id="spellFixedWrap" class="spell-fixed-bottom" hidden>
-      <input class="spell-input" id="spellInput"
-             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-             inputmode="text" enterkeyhint="done">
-    </div>
 
     <!-- 测试结果 -->
     <div id="testResult" hidden></div>
@@ -3434,12 +3472,10 @@ function bindSpellInput(word, stage) {
   const inp = $('#spellInput');
   if (!inp) return;
   setTimeout(() => { try { inp.focus(); } catch (e) {} }, 80);
-  // 键盘「完成 / 回车」= 提交
+  // 键盘「完成」键 = 提交（手机键盘右下角的绿色按钮）
   inp.onkeydown = e => {
     if (e.key === 'Enter') { e.preventDefault(); submitSpell(); }
   };
-  const speakBtn = $('#btnQuizSpeak');
-  if (speakBtn) speakBtn.onclick = () => Speech.speak(word.text);
 }
 /* 懒创建图片预览弹窗 */
 function ensureImgPreviewModal() {
@@ -3462,15 +3498,6 @@ function renderQuestion() {
   const w = task.word;
   const stage = task.stage;
   T.answered = false;
-
-  // ★ 拼写题：显示输入区；其余题型：隐藏
-  const isSpell = (stage === 'spell' || stage === 'reverse');
-  const fixedWrap = $('#spellFixedWrap');
-  if (fixedWrap) fixedWrap.hidden = !isSpell;
-  if (isSpell) {
-    const inp = $('#spellInput');
-    if (inp) inp.value = '';   // 新题清空
-  }
 
   const stageNameMap = {
     example: '看例句选图',
@@ -3668,21 +3695,31 @@ function renderQuestion() {
   } else if (stage === 'spell') {
     const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
     $('#testRun').innerHTML = `
-      <div class="quiz-header">
-        <div class="quiz-progress">${progressText}</div>
-        <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
-      </div>
-      <div class="quiz-card" style="padding:14px">
+      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-card slide-in" style="padding:14px">
         <div class="spell-img-wrap">
           <img src="${url}" alt="">
           ${capText ? `<div class="spell-img-cap">${esc(capText)}</div>` : ''}
-          <button type="button" class="spell-speak-btn" id="btnQuizSpeak" title="听发音">🔊</button>
         </div>
-      </div>
-      ${renderWordSheetHTML(w)}`;
-    bindPullHandle(w);
+        <input class="spell-input-bare" id="spellInput" style="margin-top:16px"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               inputmode="text" enterkeyhint="done">
+        <div style="text-align:center;margin-top:12px">
+          <button type="button" id="btnSpellHint"
+                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示音标</button>
+        </div>
+        <div id="spellHintWrap"></div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
     bindSpellInput(w, 'spell');
-    // 阶段2：看图拼词 —— 自动播放
+    $('#btnSpellHint').onclick = () => {
+      const wrap = $('#spellHintWrap');
+      if (!wrap) return;
+      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+      wrap.innerHTML = w.phonetic
+        ? `<div class="lc-phonetic" style="text-align:center;margin-top:4px">${esc(w.phonetic)}</div>`
+        : '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:4px">这个词没有音标</div>';
+    };
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
 
   } else if (stage === 'reverse') {
@@ -3691,27 +3728,32 @@ function renderQuestion() {
       (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
     ).join('；');
     $('#testRun').innerHTML = `
-      <div class="quiz-header">
-        <div class="quiz-progress">${progressText}</div>
-        <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
-      </div>
-      <div class="quiz-card" style="padding:16px">
-        <div class="rev-meaning" style="margin-top:0">${meaning || '（无释义）'}</div>
-        <div class="rev-actions">
-          <button class="btn" id="btnQuizSpeak">🔊 听发音</button>
-          <button class="btn" id="btnShowImage">🖼 看图片</button>
+      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-card slide-in" style="padding:26px 20px 20px">
+        <input class="spell-input-bare" id="spellInput"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               inputmode="text" enterkeyhint="done">
+        <div class="spell-rev-zh">${meaning || '（无释义）'}</div>
+        <div style="text-align:center;margin-top:14px">
+          <button type="button" id="btnRevHint"
+                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示例句</button>
         </div>
-      </div>
-      ${renderWordSheetHTML(w)}`;
-    bindPullHandle(w);
+        <div id="revHintWrap"></div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
     bindSpellInput(w, 'reverse');
-    $('#btnShowImage').onclick = () => {
-      const m = ensureImgPreviewModal();
-      const img = m.querySelector('#imgPreviewImg');
-      if (img) img.src = url;
-      m.classList.add('open');
+    $('#btnRevHint').onclick = () => {
+      const wrap = $('#revHintWrap');
+      if (!wrap) return;
+      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+      const sents = splitWordSentences(w);
+      if (!sents.length) {
+        wrap.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:10px">这个词没有例句</div>';
+        return;
+      }
+      const { en } = splitSentenceLine(sents[0]);
+      wrap.innerHTML = `<div class="example-sentence" style="text-align:center;margin-top:10px">${highlightWordInText(en, w.text)}</div>`;
     };
-    // 阶段3：看中拼英文 —— 不自动播放
 
   } else if (stage === 'review-choice') {
     // 复习：看单词 + 图片 → 选 4 个中文意思之一

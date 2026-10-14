@@ -296,6 +296,30 @@ label:first-of-type{margin-top:0}
   text-align:center;font-size:12.5px;color:var(--muted);
   letter-spacing:1.2px;margin-bottom:14px;font-weight:600;
 }
+/* 进度条 + 详情按钮 同行 */
+.quiz-header{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;margin-bottom:14px;
+}
+.quiz-header .quiz-progress{
+  margin:0;flex:1;min-width:0;text-align:left;padding-left:2px;
+}
+.quiz-detail-btn{
+  flex-shrink:0;
+  display:inline-flex;align-items:center;gap:5px;
+  padding:7px 13px;border-radius:10px;
+  border:1px solid var(--border);
+  background:rgba(var(--text-rgb),.05);color:var(--muted);
+  font-family:inherit;font-size:12.5px;font-weight:700;
+  cursor:pointer;transition:all .2s var(--ease);
+  min-height:34px;
+}
+.quiz-detail-btn:active{
+  transform:scale(.95);
+  background:rgba(var(--accent-rgb),.16);
+  color:var(--accent);
+  border-color:rgba(var(--accent-rgb),.4);
+}
 .quiz-card{
   padding:18px;border-radius:calc(var(--radius) + 4px);
   border:1px solid var(--border);background:rgba(var(--surface-rgb),.8);
@@ -412,6 +436,7 @@ label:first-of-type{margin-top:0}
 .learn-card.ok .lc-badge{color:#3ddc97}
 .learn-card.bad .lc-badge{color:#ff6b81}
 .lc-img{
+  display:block;margin:0 auto;
   width:100%;max-width:280px;max-height:26vh;object-fit:contain;
   border-radius:var(--img-radius);background:rgba(var(--text-rgb),.04);
 }
@@ -421,7 +446,11 @@ label:first-of-type{margin-top:0}
   -webkit-background-clip:text;background-clip:text;color:transparent;
   text-align:center;word-break:break-all;
 }
-.lc-phonetic{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);font-size:14px;margin-top:-4px}
+.lc-phonetic{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--muted);font-size:14px;margin-top:-4px;
+  text-align:center;
+}
 .lc-meanings{width:100%;display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .lc-mean-row{
   display:flex;gap:9px;align-items:baseline;padding:9px 13px;border-radius:11px;
@@ -3120,12 +3149,13 @@ function buildOptions(word) {
 
 /* 复习选择题：1 个正确释义 + 3 个从词库随机抽的干扰释义 */
 function buildReviewOptions(word) {
-  const correctText = meaningsToString(getMeanings(word)) || '（无释义）';
+  const plainOf = w => meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
+  const correctText = plainOf(word) || '（无释义）';
   const opts = [{ text: correctText, correct: 1 }];
   const used = new Set([correctText]);
   for (const o of shuffle(S.words)) {
     if (o.id === word.id) continue;
-    const t = meaningsToString(getMeanings(o));
+    const t = plainOf(o);
     if (!t || used.has(t)) continue;
     used.add(t);
     opts.push({ text: t, correct: 0 });
@@ -3328,7 +3358,10 @@ function renderQuestion() {
     const firstSent = sents[0] || '';
     const { en: hintEn } = splitSentenceLine(firstSent);
     $('#testRun').innerHTML = `
-      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-header">
+        <div class="quiz-progress">${progressText}</div>
+        <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
+      </div>
       <div class="quiz-card">
         <div class="quiz-word">${esc(w.text)}</div>
         ${hintEn ? `<div class="rev-meaning" style="text-align:left;font-size:14px;font-weight:600;line-height:1.55;padding:11px 13px;margin-bottom:10px;background:rgba(var(--accent2-rgb),.06);border-color:rgba(var(--accent2-rgb),.18)">${highlightWordInText(hintEn, w.text)}</div>` : ''}
@@ -3361,7 +3394,10 @@ function renderQuestion() {
 
   } else if (stage === 'spell') {
     $('#testRun').innerHTML = `
-      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-header">
+        <div class="quiz-progress">${progressText}</div>
+        <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
+      </div>
       <div class="quiz-card">
         <img class="quiz-img" src="${url}" alt="">
         <button class="btn block" id="btnQuizSpeak" style="margin-top:10px;font-size:13.5px;min-height:38px">🔊 听发音</button>
@@ -3382,11 +3418,15 @@ function renderQuestion() {
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
 
   } else if (stage === 'reverse') {
-    const meaning = getMeanings(w).map(m =>
+    const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
+    const meaning = plainMeanings.map(m =>
       (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
     ).join('；');
     $('#testRun').innerHTML = `
-      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-header">
+        <div class="quiz-progress">${progressText}</div>
+        <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
+      </div>
       <div class="quiz-card">
         <img class="quiz-img" src="${url}" alt="" style="max-height:26vh">
         <div class="rev-meaning" style="margin-top:10px">${meaning || '（无释义）'}</div>
@@ -3540,9 +3580,8 @@ function renderWordSheetHTML(w) {
 
 /* 绑定「下拉把手 → 打开抽屉」的交互 */
 function bindPullHandle(word) {
-  const testRun = $('#testRun');
   const sheet = $('#wordSheet');
-  if (!testRun || !sheet) return;
+  if (!sheet) return;
 
   // ★ 测量顶部栏真实高度，把详情页精确顶到它下方
   const topbarEl = document.querySelector('.topbar');
@@ -3551,25 +3590,13 @@ function bindPullHandle(word) {
     if (h > 0) document.documentElement.style.setProperty('--topbar-actual-h', h + 'px');
   }
 
-  const open = () => sheet.classList.add('open');
   const close = () => sheet.classList.remove('open');
 
-  // ── 题目区：在顶部向下滑 → 打开详情 ──
-  let sY = 0, armed = false;
-  testRun.addEventListener('touchstart', e => {
-    if (testRun.scrollTop > 4) return;
-    sY = e.touches[0].clientY;
-    armed = true;
-  }, { passive: true });
-  testRun.addEventListener('touchmove', e => {
-    if (!armed) return;
-    const dy = e.touches[0].clientY - sY;
-    if (dy > 60) { open(); armed = false; }
-  }, { passive: true });
-  testRun.addEventListener('touchend', () => { armed = false; }, { passive: true });
-  testRun.addEventListener('touchcancel', () => { armed = false; }, { passive: true });
+  // ── 「📖 详情」按钮 → 打开 ──
+  const detailBtn = $('#btnShowDetail');
+  if (detailBtn) detailBtn.onclick = () => sheet.classList.add('open');
 
-  // ── 「收起」按钮 ──
+  // ── 「收起」按钮 → 关闭 ──
   const closeBtn = $('#wordSheetClose');
   if (closeBtn) closeBtn.onclick = close;
 

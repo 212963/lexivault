@@ -372,66 +372,24 @@ label:first-of-type{margin-top:0}
   border-bottom-color:transparent;
 }
 
-/* ═══════════ 下拉详情抽屉 ═══════════ */
-.pull-handle{
-  display:flex;flex-direction:column;align-items:center;gap:3px;
-  padding:6px 0 10px;
-  cursor:grab;touch-action:none;
-  user-select:none;-webkit-user-select:none;
-  -webkit-tap-highlight-color:transparent;
-}
-.pull-handle:active{cursor:grabbing}
-.pull-handle-bar{
-  width:38px;height:4px;border-radius:99px;
-  background:rgba(var(--text-rgb),.28);
-  transition:background .2s var(--ease);
-}
-.pull-handle:active .pull-handle-bar,
-.pull-handle.hot .pull-handle-bar{background:rgba(var(--accent-rgb),.85)}
-.pull-handle-label{
-  font-size:10.5px;color:var(--muted);
-  font-weight:600;letter-spacing:.5px;
-}
-
+/* ═══════════ 全屏单词详情（下滑打开 / 上滑关闭） ═══════════ */
 .word-sheet{
   position:fixed;inset:0;z-index:9997;
-  background:var(--overlay);
-  backdrop-filter:blur(8px);
-  -webkit-backdrop-filter:blur(8px);
+  background:var(--bg);
   display:flex;flex-direction:column;
   opacity:0;pointer-events:none;
-  transition:opacity .25s var(--ease);
+  transform:translateY(30px);
+  transition:opacity .3s var(--ease),transform .34s cubic-bezier(.22,1,.36,1);
 }
-.word-sheet.open{opacity:1;pointer-events:auto}
+.word-sheet.open{opacity:1;pointer-events:auto;transform:translateY(0)}
 .word-sheet-panel{
-  width:100%;max-width:520px;
+  flex:1;
+  width:100%;max-width:640px;
   margin:0 auto;
-  max-height:88vh;
   overflow-y:auto;
-  padding:calc(var(--safe-top) + 4px) 18px calc(26px + var(--safe-bottom));
-  background:var(--surface);
-  border:1px solid var(--border);border-top:none;
-  border-radius:0 0 24px 24px;
-  box-shadow:0 22px 60px -14px rgba(0,0,0,.65);
-  transform:translateY(-100%);
-  transition:transform .34s cubic-bezier(.22,1,.36,1);
+  padding:calc(var(--safe-top) + 22px) 18px calc(30px + var(--safe-bottom));
   overscroll-behavior:contain;
-}
-.word-sheet.open .word-sheet-panel{transform:translateY(0)}
-.word-sheet-grab{
-  width:44px;height:5px;border-radius:99px;
-  background:rgba(var(--text-rgb),.24);
-  margin:0 auto 14px;
-  cursor:grab;touch-action:none;
-  position:relative;
-}
-.word-sheet-grab::before{
-  content:'';position:absolute;inset:-16px -40px;
-}
-.word-sheet-grab:active{cursor:grabbing;background:rgba(var(--text-rgb),.45)}
-.word-sheet-title{
-  font-size:11px;color:var(--muted);letter-spacing:1.2px;
-  font-weight:700;text-align:center;margin-bottom:10px;
+  -webkit-overflow-scrolling:touch;
 }
 .quiz-feedback{text-align:center;margin-top:14px;font-size:15px;font-weight:700;min-height:22px}
 .quiz-feedback.ok{color:#3ddc97}
@@ -3364,13 +3322,9 @@ function renderQuestion() {
     const { en: hintEn } = splitSentenceLine(firstSent);
     $('#testRun').innerHTML = `
       <div class="quiz-progress">${progressText}</div>
-      <div class="pull-handle" id="pullHandle">
-        <div class="pull-handle-bar"></div>
-        <div class="pull-handle-label">↓ 下拉看详情</div>
-      </div>
       <div class="quiz-card">
         <div class="quiz-word">${esc(w.text)}</div>
-        ${hintEn ? `<div class="rev-meaning" style="text-align:left;font-size:14px;font-weight:600;line-height:1.55;padding:11px 13px;margin-bottom:10px;background:rgba(var(--accent2-rgb),.06);border-color:rgba(var(--accent2-rgb),.18)">${esc(hintEn)}</div>` : ''}
+        ${hintEn ? `<div class="rev-meaning" style="text-align:left;font-size:14px;font-weight:600;line-height:1.55;padding:11px 13px;margin-bottom:10px;background:rgba(var(--accent2-rgb),.06);border-color:rgba(var(--accent2-rgb),.18)">${highlightWordInText(hintEn, w.text)}</div>` : ''}
         <div style="text-align:center;margin-bottom:6px">
           <button class="btn" id="btnQuizSpeak" style="font-size:13.5px;min-height:38px">🔊 发音</button>
         </div>
@@ -3401,10 +3355,6 @@ function renderQuestion() {
   } else if (stage === 'spell') {
     $('#testRun').innerHTML = `
       <div class="quiz-progress">${progressText}</div>
-      <div class="pull-handle" id="pullHandle">
-        <div class="pull-handle-bar"></div>
-        <div class="pull-handle-label">↓ 下拉看详情</div>
-      </div>
       <div class="quiz-card">
         <img class="quiz-img" src="${url}" alt="">
         <button class="btn block" id="btnQuizSpeak" style="margin-top:10px;font-size:13.5px;min-height:38px">🔊 听发音</button>
@@ -3430,10 +3380,6 @@ function renderQuestion() {
     ).join('；');
     $('#testRun').innerHTML = `
       <div class="quiz-progress">${progressText}</div>
-      <div class="pull-handle" id="pullHandle">
-        <div class="pull-handle-bar"></div>
-        <div class="pull-handle-label">↓ 下拉看详情</div>
-      </div>
       <div class="quiz-card">
         <img class="quiz-img" src="${url}" alt="" style="max-height:26vh">
         <div class="rev-meaning" style="margin-top:10px">${meaning || '（无释义）'}</div>
@@ -3573,63 +3519,61 @@ function renderWordSheetHTML(w) {
 
   return `
     <div class="word-sheet" id="wordSheet">
-      <div class="word-sheet-panel">
-        <div class="word-sheet-grab" id="wordSheetGrab"></div>
-        <div class="word-sheet-title">单词详情</div>
+      <div class="word-sheet-panel" id="wordSheetPanel">
         ${imgUrl ? `<img class="lc-img" src="${imgUrl}" alt="">` : ''}
-        <div class="lc-word">${esc(w.text)}</div>
+        <div class="lc-word" style="margin-top:6px">${esc(w.text)}</div>
         ${w.phonetic ? `<div class="lc-phonetic">${esc(w.phonetic)}</div>` : ''}
         <div class="lc-meanings">${meaningHtml}</div>
+        <button class="btn primary block lg" id="wordSheetClose" style="margin-top:8px">收起</button>
         ${phrasesBlock}
         ${sentencesBlock}
-        <button class="btn block lg" id="wordSheetClose" style="margin-top:16px">收起</button>
       </div>
     </div>`;
 }
 
 /* 绑定「下拉把手 → 打开抽屉」的交互 */
 function bindPullHandle(word) {
-  const handle = $('#pullHandle');
+  const testRun = $('#testRun');
   const sheet = $('#wordSheet');
-  if (!handle || !sheet) return;
+  const panel = $('#wordSheetPanel');
+  if (!testRun || !sheet) return;
 
-  let startY = 0, dragging = false;
   const open = () => sheet.classList.add('open');
   const close = () => sheet.classList.remove('open');
 
-  // ── 把手：向下拖 → 打开 ──
-  handle.addEventListener('pointerdown', e => {
-    dragging = true;
-    startY = e.clientY;
-    handle.classList.add('hot');
-    try { handle.setPointerCapture(e.pointerId); } catch (err) {}
-  });
-  handle.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    if (e.clientY - startY > 40) { open(); dragging = false; }
-  });
-  const onUp = () => { dragging = false; handle.classList.remove('hot'); };
-  handle.addEventListener('pointerup', onUp);
-  handle.addEventListener('pointercancel', onUp);
+  // ── 题目区：在顶部向下滑 → 打开详情 ──
+  let sY = 0, armed = false;
+  testRun.addEventListener('touchstart', e => {
+    if (testRun.scrollTop > 4) return;
+    sY = e.touches[0].clientY;
+    armed = true;
+  }, { passive: true });
+  testRun.addEventListener('touchmove', e => {
+    if (!armed) return;
+    const dy = e.touches[0].clientY - sY;
+    if (dy > 60) { open(); armed = false; }
+  }, { passive: true });
+  testRun.addEventListener('touchend', () => { armed = false; }, { passive: true });
+  testRun.addEventListener('touchcancel', () => { armed = false; }, { passive: true });
 
-  // ── 抽屉顶部把手：向下拖 → 关闭 ──
-  const grab = $('#wordSheetGrab');
-  if (grab) {
-    let sY = 0, d2 = false;
-    grab.addEventListener('pointerdown', e => {
-      d2 = true; sY = e.clientY;
-      try { grab.setPointerCapture(e.pointerId); } catch (err) {}
-    });
-    grab.addEventListener('pointermove', e => {
-      if (!d2) return;
-      if (e.clientY - sY > 40) { close(); d2 = false; }
-    });
-    grab.addEventListener('pointerup', () => { d2 = false; });
-    grab.addEventListener('pointercancel', () => { d2 = false; });
+  // ── 详情页：在顶部向上滑 → 关闭 ──
+  if (panel) {
+    let sY2 = 0, armed2 = false;
+    panel.addEventListener('touchstart', e => {
+      if (panel.scrollTop > 4) return;
+      sY2 = e.touches[0].clientY;
+      armed2 = true;
+    }, { passive: true });
+    panel.addEventListener('touchmove', e => {
+      if (!armed2) return;
+      const dy = e.touches[0].clientY - sY2;
+      if (dy < -60) { close(); armed2 = false; }
+    }, { passive: true });
+    panel.addEventListener('touchend', () => { armed2 = false; }, { passive: true });
+    panel.addEventListener('touchcancel', () => { armed2 = false; }, { passive: true });
   }
 
-  // ── 点背景 / 收起按钮 ──
-  sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+  // ── 「收起」按钮 ──
   const closeBtn = $('#wordSheetClose');
   if (closeBtn) closeBtn.onclick = close;
 

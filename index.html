@@ -78,6 +78,36 @@ body::before{
 /* ★ 加固 [hidden]：防止任何 display 声明把它覆盖掉 */
 [hidden]{display:none!important}
 
+/* ★ 测试模式：顶栏 + 底部导航全隐藏，让题目占满全屏 */
+body.test-mode .topbar,
+body.test-mode .tabbar{display:none!important}
+body.test-mode{padding-bottom:0}
+body.test-mode .content{padding:0}
+
+/* ★ 测试模式：题目区占满全屏，卡片从状态栏下方一直撑到底部 */
+body.test-mode #view-test{
+  display:flex;
+  flex-direction:column;
+  min-height:100dvh;
+  padding:calc(var(--safe-top) + 12px) 16px calc(var(--safe-bottom) + 16px);
+  box-sizing:border-box;
+}
+body.test-mode #testRun{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+body.test-mode #testRun > .quiz-card{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+/* ★ 隐藏所有进度标题（第 X / Y 题 · 题型） */
+body.test-mode .quiz-progress{display:none!important}
+/* ★ 图片组自动沉到卡片底部 */
+body.test-mode .quiz-grid{margin-top:auto}
+
+
 /* ═══════════ 顶部栏 ═══════════ */
 .topbar{
   position:sticky;top:0;z-index:20;
@@ -325,6 +355,10 @@ label:first-of-type{margin-top:0}
   border:1px solid var(--border);background:rgba(var(--surface-rgb),.8);
   box-shadow:var(--shadow);animation:fadeUp .35s var(--ease);
 }
+/* ★ 测试模式下卡片铺满，图片组沉底 */
+body.test-mode #testRun > .quiz-card{
+  padding:20px 18px 18px;
+}
 .quiz-img{
   width:100%;max-height:28vh;object-fit:contain;
   border-radius:var(--img-radius);background:rgba(var(--text-rgb),.05);
@@ -534,7 +568,7 @@ label:first-of-type{margin-top:0}
   font-size:18px;
   font-weight:600;
   line-height:1.75;
-  padding:8px 4px 14px;
+  padding:6px 2px 4px;
   color:var(--text);
   background:transparent;
   border:none;
@@ -3541,9 +3575,8 @@ function renderQuestion() {
         <div class="example-sentence" id="exampleSentence">
           ${en ? renderClickableSentence(en, w.text) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
         </div>
-        <div style="text-align:center;margin:10px 0 4px">
-          <button class="btn" id="btnExampleSpeak" style="font-size:13.5px;min-height:38px">🔊 再听一次</button>
-        </div>
+        <button class="btn" id="btnExampleSpeak"
+                style="font-size:13.5px;min-height:38px;align-self:flex-start;margin-top:6px">🔊 再听一次</button>
         <div class="quiz-grid">
           ${opts.map(o => {
             return `<button class="quiz-opt" data-img="${o.imgId}">
@@ -4172,9 +4205,10 @@ function restoreTestProgress(s) {
 /* 顶部「退出」按钮的显隐（仅测试进行中显示） */
 function updateExitButton() {
   const btn = $('#btnExitTest');
-  if (!btn) return;
   const inTest = S.view === 'test' && !$('#testRun').hidden;
-  btn.hidden = !inTest;
+  if (btn) btn.hidden = !inTest;
+  // ★ 测试进行中：给 body 加 test-mode 类，顶栏 + 底栏自动隐藏
+  document.body.classList.toggle('test-mode', inTest);
 }
 
 /* 按批次号重建该批次的学习任务队列（每个词依次走 5 步） */

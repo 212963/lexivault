@@ -483,6 +483,17 @@ label:first-of-type{margin-top:0}
   border-radius:12px;line-height:1.7;
 }
 .rev-meaning i.rev-pos{color:var(--accent);font-style:italic;font-weight:700;font-size:13px;margin-right:5px}
+/* 看例句选图：例句无框无线、纯文字（模仿百词斩学习第一步） */
+.example-sentence{
+  text-align:left;
+  font-size:18px;
+  font-weight:600;
+  line-height:1.75;
+  padding:8px 4px 14px;
+  color:var(--text);
+  background:transparent;
+  border:none;
+}
 .hl-word{color:var(--accent);font-weight:800;font-style:normal}
 /* 例句里可点击的单词（查词用） */
 .glance-word{
@@ -519,6 +530,67 @@ label:first-of-type{margin-top:0}
   padding:16px 18px 28px;
   overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
+}
+/* ═══ 详情页（不背单词风格）═══ */
+.ws-head{
+  display:flex;align-items:center;gap:12px;
+  padding:4px 0 12px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:16px;
+}
+.ws-head .ws-word-wrap{flex:1;min-width:0}
+.ws-word{
+  font-size:36px;font-weight:800;letter-spacing:-1px;line-height:1.1;
+  word-break:break-all;
+}
+.ws-phon{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--muted);font-size:14px;margin-top:4px;
+}
+.ws-speak{
+  flex-shrink:0;width:44px;height:44px;
+  border-radius:50%;border:1px solid var(--border);
+  background:rgba(var(--text-rgb),.05);
+  color:var(--text);font-size:18px;cursor:pointer;
+  display:grid;place-items:center;
+  transition:all .2s var(--ease);
+}
+.ws-speak:active{transform:scale(.92);background:rgba(var(--accent-rgb),.16);color:var(--accent)}
+.ws-meanings{display:flex;flex-direction:column;gap:10px}
+.ws-mean-row{
+  display:flex;gap:10px;align-items:baseline;
+  padding-bottom:8px;
+  border-bottom:1px dashed var(--border);
+}
+.ws-mean-row:last-child{border-bottom:none;padding-bottom:0}
+.ws-pos{
+  flex-shrink:0;font-style:italic;font-weight:800;
+  color:var(--accent);font-size:14px;
+  min-width:44px;
+}
+.ws-text{font-size:15.5px;line-height:1.6;flex:1;word-break:break-word}
+.ws-section{margin-top:20px}
+.ws-section-title{
+  font-size:12px;font-weight:800;letter-spacing:.6px;
+  color:var(--muted);margin-bottom:10px;
+}
+.ws-sent{padding:9px 0}
+.ws-sent + .ws-sent{border-top:1px dashed var(--border)}
+.ws-sent-en{
+  font-size:15px;font-weight:600;line-height:1.6;
+  color:var(--text);word-break:break-word;
+}
+.ws-sent-cn{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.55}
+.ws-phrase{
+  font-size:14px;line-height:1.7;color:var(--text);
+  padding:5px 0;word-break:break-word;
+}
+.ws-phrase + .ws-phrase{border-top:1px dashed var(--border)}
+.ws-img{
+  width:100%;max-height:40vh;object-fit:contain;
+  border-radius:var(--img-radius);
+  background:rgba(var(--text-rgb),.04);
+  display:block;
 }
 .quiz-feedback{text-align:center;margin-top:14px;font-size:15px;font-weight:700;min-height:22px}
 .quiz-feedback.ok{color:#3ddc97}
@@ -2701,6 +2773,7 @@ async function saveCreateWord() {
    ══════════════════════════════════════════════ */
 const T = {
   mode: 'learn',        // 'learn' | 'review'
+  phase: 'learn',       // 'learn'（前 5 步） | 'spell'（拼写阶段） | 'review'
   // 学习：批次
   batches: [],          // [[w1..w20], [w21..w40], ...]
   batchIdx: 0,          // 当前批次下标
@@ -3274,7 +3347,9 @@ function buildReviewOptions(word) {
 /* ══════════════════════════════════════════════
    Learn 流程：未学习词分批学习
    ══════════════════════════════════════════════ */
-const LEARN_BATCH_SIZE = 20;
+const LEARN_BATCH_SIZE = 10;
+/* 学习阶段的 5 步，顺序不能改 */
+const LEARN_STAGES = ['example', 'choice-zh', 'choice', 'self-sentence', 'self-word'];
 
 /* 按 20 词一组，把未学习词切分 */
 function getUnlearnedWords() {
@@ -3286,32 +3361,15 @@ function buildLearnSession() {
   const pool = getUnlearnedWords();
   if (!pool.length) return null;
 
-  const st = Object.assign({ choice: true, spell: true, reverse: true },
-                            S.settings.testStages || {});
-  const stages = ['example'];   // 看例句选图：永远开启（学习环节第一步）
-  if (st.choice)  stages.push('choice');
-  if (st.spell)   stages.push('spell');
-  if (st.reverse) stages.push('reverse');
-
-  // 20 词一组
+  // 10 词一组
   const batches = [];
   for (let i = 0; i < pool.length; i += LEARN_BATCH_SIZE) {
     batches.push(pool.slice(i, i + LEARN_BATCH_SIZE));
   }
 
-  // 展开成扁平任务队列
-  const tasks = [];
-  for (const batch of batches) {
-    for (const stage of stages) {
-      for (const word of batch) {
-        tasks.push({ word, stage });
-      }
-    }
-  }
-
   return {
     batches,
-    tasks,
+    tasks: buildBatchTasks(0),
     wordPool: pool,
   };
 }
@@ -3323,18 +3381,19 @@ function startLearn() {
   }
 
   T.mode = 'learn';
+  T.phase = 'learn';
   T.batches = session.batches;
   T.batchIdx = 0;
-  T.tasks = buildBatchTasks(0);               // ★ 只装第一批，后续批次由 endRound 按需重建
+  T.tasks = buildBatchTasks(0);               // ★ 只装第一批
   T.taskIdx = 0;
   T.round = 1;
   T.roundWrong = [];
-  T.firstRoundTotal = session.tasks.length;   // 全量题数（正确率分母）
+  T.firstRoundTotal = 0;                      // 拼写阶段才算正确率
   T.firstRoundCorrect = 0;
   T.answered = false;
   T.wordPool = session.wordPool;
-  T.roundErrMap = {};                         // ★ 清空错题计数
-  T.batchSettled = false;                     // ★ 本批次未结算
+  T.roundErrMap = {};
+  T.batchSettled = false;
 
   $('#testSetup').hidden = true;
   $('#testRun').hidden = false;
@@ -3413,9 +3472,19 @@ function renderQuestion() {
     if (inp) inp.value = '';   // 新题清空
   }
 
+  const stageNameMap = {
+    example: '看例句选图',
+    'choice-zh': '看词选中文',
+    choice: '看词选图',
+    'self-sentence': '判断是否认识',
+    'self-word': '最后确认',
+    spell: '看图拼词',
+    reverse: '看中拼英文',
+    'review-choice': '选中文',
+  };
   let progressText;
   if (T.round === 1) {
-    const stageName = { example: '看例句选图', choice: '看词选图', spell: '看图拼词', reverse: '看中拼英文', 'review-choice': '选中文' }[stage];
+    const stageName = stageNameMap[stage] || '测试';
     progressText = `第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · ${stageName}`;
   } else {
     progressText = `错题重测 · 第 ${T.taskIdx + 1} / ${T.tasks.length} 题`;
@@ -3433,7 +3502,7 @@ function renderQuestion() {
     $('#testRun').innerHTML = `
       <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card">
-        <div class="rev-meaning" id="exampleSentence" style="text-align:left;font-size:15px;font-weight:600;line-height:1.65;padding:14px 16px">
+        <div class="example-sentence" id="exampleSentence">
           ${en ? renderClickableSentence(en, w.text) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
         </div>
         <div style="text-align:center;margin:10px 0 4px">
@@ -3441,10 +3510,8 @@ function renderQuestion() {
         </div>
         <div class="quiz-grid">
           ${opts.map(o => {
-            const mt = meaningsToString(getMeanings(o.word));
             return `<button class="quiz-opt" data-img="${o.imgId}">
               <img src="${imgURL(o.imgId)}" alt="">
-              ${mt ? `<div class="quiz-opt-cap">${esc(mt)}</div>` : ''}
             </button>`;
           }).join('')}
         </div>
@@ -3471,6 +3538,33 @@ function renderQuestion() {
       finishQuestion(ok, w);
     });
 
+  } else if (stage === 'choice-zh') {
+    // 看英文选中文：4 个中文选项（模仿不背单词学习第一步）
+    const opts = buildReviewOptions(w);
+    $('#testRun').innerHTML = `
+      <div class="quiz-header">
+        <div class="quiz-progress">${progressText}</div>
+        <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
+      </div>
+      <div class="quiz-card">
+        <div class="quiz-word">${esc(w.text)}</div>
+        ${w.phonetic ? `<div class="lc-phonetic" style="text-align:center;margin-top:-4px;margin-bottom:14px">${esc(w.phonetic)}</div>` : ''}
+        <div class="choice-grid">
+          ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">${esc(o.text)}</button>`).join('')}
+        </div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>
+      ${renderWordSheetHTML(w)}`;
+    bindPullHandle(w);
+    $$('.choice-opt').forEach(b => b.onclick = () => {
+      if (T.answered) return;
+      const ok = b.dataset.correct === '1';
+      b.classList.add(ok ? 'ok' : 'bad');
+      if (!ok) $$('.choice-opt').forEach(x => { if (x.dataset.correct === '1') x.classList.add('ok'); });
+      finishQuestion(ok, w);
+    });
+    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
+
   } else if (stage === 'choice') {
     const opts = buildOptions(w);
     const sents = splitWordSentences(w);
@@ -3483,9 +3577,9 @@ function renderQuestion() {
       </div>
       <div class="quiz-card">
         <div class="quiz-word">${esc(w.text)}</div>
-        ${hintEn ? `<div class="rev-meaning" style="text-align:left;font-size:14px;font-weight:600;line-height:1.55;padding:11px 13px;margin-bottom:10px;background:rgba(var(--accent2-rgb),.06);border-color:rgba(var(--accent2-rgb),.18)">${highlightWordInText(hintEn, w.text)}</div>` : ''}
+        <div id="hintWrap"></div>
         <div style="text-align:center;margin-bottom:6px">
-          <button class="btn" id="btnQuizSpeak" style="font-size:13.5px;min-height:38px">🔊 发音</button>
+          <button class="btn" id="btnChoiceHint" style="font-size:13.5px;min-height:38px">💡 提示</button>
         </div>
         <div class="quiz-grid">
           ${opts.map(o => {
@@ -3500,8 +3594,16 @@ function renderQuestion() {
       </div>
       ${renderWordSheetHTML(w)}`;
     bindPullHandle(w);
-    $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
-    // 阶段1：看词选图 —— 自动播放
+    $('#btnChoiceHint').onclick = () => {
+      const wrap = $('#hintWrap');
+      if (!wrap) return;
+      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+      if (hintEn) {
+        wrap.innerHTML = `<div class="example-sentence" style="margin-bottom:8px">${highlightWordInText(hintEn, w.text)}</div>`;
+      } else {
+        wrap.innerHTML = `<div class="example-sentence" style="color:var(--muted);font-size:14px">这个词还没有例句</div>`;
+      }
+    };
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
     $$('.quiz-opt').forEach(b => b.onclick = () => {
       if (T.answered) return;
@@ -3510,6 +3612,58 @@ function renderQuestion() {
       if (!ok) $$('.quiz-opt').forEach(x => { if (x.dataset.img === w.imageIds[0]) x.classList.add('ok'); });
       finishQuestion(ok, w);
     });
+
+  } else if (stage === 'self-sentence') {
+    // 单词 + 例句 → 认识 / 不认识（模仿不背单词学习第二步）
+    const sents = splitWordSentences(w);
+    const firstSent = sents[0] || '';
+    const { en } = splitSentenceLine(firstSent);
+    $('#testRun').innerHTML = `
+      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-card">
+        <div class="quiz-word">${esc(w.text)}</div>
+        ${w.phonetic ? `<div class="lc-phonetic" style="text-align:center;margin-top:-4px;margin-bottom:14px">${esc(w.phonetic)}</div>` : ''}
+        ${en ? `<div class="example-sentence">${highlightWordInText(en, w.text)}</div>` : ''}
+        <div style="text-align:center;margin-top:10px">
+          <button class="btn" id="btnSelfHint" style="font-size:13.5px;min-height:38px">💡 提示中文</button>
+        </div>
+        <div id="selfHintWrap"></div>
+        <div class="self-actions">
+          <button class="btn" id="btnNotKnow">不认识</button>
+          <button class="btn primary" id="btnKnow">认识</button>
+        </div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
+    $('#btnSelfHint').onclick = () => {
+      const wrap = $('#selfHintWrap');
+      if (!wrap) return;
+      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
+      const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
+      const meaning = plainMeanings.map(m =>
+        (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
+      ).join('；');
+      wrap.innerHTML = `<div class="rev-meaning" style="margin-top:10px">${meaning || '（无释义）'}</div>`;
+    };
+    $('#btnKnow').onclick = () => { if (!T.answered) finishQuestion(true, w); };
+    $('#btnNotKnow').onclick = () => { if (!T.answered) finishQuestion(false, w); };
+    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
+
+  } else if (stage === 'self-word') {
+    // 只看单词 → 认识 / 不认识（模仿不背单词学习第三步）
+    $('#testRun').innerHTML = `
+      <div class="quiz-progress">${progressText}</div>
+      <div class="quiz-card">
+        <div class="quiz-word">${esc(w.text)}</div>
+        ${w.phonetic ? `<div class="lc-phonetic" style="text-align:center;margin-top:-4px;margin-bottom:14px">${esc(w.phonetic)}</div>` : ''}
+        <div class="self-actions">
+          <button class="btn" id="btnNotKnow">不认识</button>
+          <button class="btn primary" id="btnKnow">认识</button>
+        </div>
+        <div class="quiz-feedback" id="quizFb"></div>
+      </div>`;
+    $('#btnKnow').onclick = () => { if (!T.answered) finishQuestion(true, w); };
+    $('#btnNotKnow').onclick = () => { if (!T.answered) finishQuestion(false, w); };
+    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
 
   } else if (stage === 'spell') {
     const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
@@ -3599,94 +3753,159 @@ function submitSpell() {
 }
 function finishQuestion(ok, word) {
   T.answered = true;
-  if (T.round === 1 && ok) T.firstRoundCorrect++;
-
   const stage = T.tasks[T.taskIdx].stage;
 
-  // ── 错题记录 ──
-  if (T.mode === 'learn') {
-    // example 环节答错不记；其余环节答错记入错题池
-    if (stage !== 'example' && !ok) T.roundWrong.push(word);
-  } else if (T.mode === 'review') {
+  // ── 复习模式：老逻辑 ──
+  if (T.mode === 'review') {
+    if (T.round === 1 && ok) T.firstRoundCorrect++;
     if (stage === 'review-choice') {
-      // 选意思阶段答错 → 记入「拼写错题」池
       if (!ok) T.reviewWrong.push(word);
     } else {
-      // 拼写阶段（reverse）答错 → 记入本轮错题（供重测）
       if (!ok) T.roundWrong.push(word);
     }
-  }
-
-  // ★ 学习模式首轮答错 → 记录，用于批次结束时的进度结算
-  if (T.mode === 'learn' && T.round === 1 && !ok) {
-    T.roundErrMap[word.id] = (T.roundErrMap[word.id] || 0) + 1;
-  }
-
-  gradeWord(word, ok);
-
-  // ── 反馈文案 ──
-  const fb = $('#quizFb');
-  if (fb) {
-    fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
-    if (T.mode === 'review' && stage === 'review-choice') {
-      fb.textContent = ok ? '✓ 正确' : `✗ 正确答案：${meaningsToString(getMeanings(word))}`;
-    } else {
-      fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+    gradeWord(word, ok);
+    const fb = $('#quizFb');
+    if (fb) {
+      fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
+      if (stage === 'review-choice') {
+        fb.textContent = ok ? '✓ 正确' : `✗ 正确答案：${meaningsToString(getMeanings(word))}`;
+      } else {
+        fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+      }
     }
-  }
-
-  // ── 学习卡显示（仅 learn 模式）──
-  // example                  → 答对答错都显示
-  // choice / spell / reverse → 只有答错才显示
-  const showCard =
-    (T.mode === 'learn' && (stage === 'example' || !ok)) ||
-    (T.mode === 'review' && stage === 'reverse' && !ok);
-
-  if (showCard) {
-    Speech.speak(word.text);
-    setTimeout(() => showLearnCard(word, ok), 700);
-  } else {
-    // 滑动下一题
-    const card = $('.quiz-card');
-    if (card) {
-      card.classList.add('slide-out');
-      setTimeout(() => {
+    if (stage === 'reverse' && !ok) {
+      Speech.speak(word.text);
+      setTimeout(() => showLearnCard(word, ok), 700);
+    } else {
+      const card = $('.quiz-card');
+      if (card) {
+        card.classList.add('slide-out');
+        setTimeout(() => { T.taskIdx++; renderQuestion(); }, 260);
+      } else {
         T.taskIdx++;
         renderQuestion();
-      }, 260);
-    } else {
+      }
+    }
+    return;
+  }
+
+  // ── 学习模式的「学习阶段」──
+  if (T.mode === 'learn' && T.phase === 'learn') {
+    gradeWord(word, ok);
+
+    // 认识 / 不认识
+    if (stage === 'self-sentence' || stage === 'self-word') {
+      if (!ok) {
+        // 不认识：把这个词的 5 步重新推到队尾，从头再走
+        for (const s of LEARN_STAGES) {
+          T.tasks.push({ word, stage: s });
+        }
+      }
       T.taskIdx++;
       renderQuestion();
+      return;
     }
+
+    // 前 3 步（example / choice-zh / choice）：无论对错都弹学习卡
+    const fb = $('#quizFb');
+    if (fb) {
+      fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
+      if (stage === 'choice-zh') {
+        const correctText = meaningsToString(getMeanings(word).filter(m => !isPhraseMeaning(m)));
+        fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${correctText}`;
+      } else {
+        fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+      }
+    }
+    Speech.speak(word.text);
+    setTimeout(() => showLearnCard(word, ok), 700);
+    return;
+  }
+
+  // ── 学习模式的「拼写阶段」── 这里才算进度
+  if (T.mode === 'learn' && T.phase === 'spell') {
+    if (ok) T.firstRoundCorrect++;
+    if (T.round === 1) T.firstRoundTotal++;
+    if (!ok) {
+      T.roundWrong.push(word);
+      T.roundErrMap[word.id] = (T.roundErrMap[word.id] || 0) + 1;
+    }
+    gradeWord(word, ok);
+    const fb = $('#quizFb');
+    if (fb) {
+      fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
+      fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+    }
+    if (!ok) {
+      Speech.speak(word.text);
+      setTimeout(() => showLearnCard(word, ok), 700);
+    } else {
+      const card = $('.quiz-card');
+      if (card) {
+        card.classList.add('slide-out');
+        setTimeout(() => { T.taskIdx++; renderQuestion(); }, 260);
+      } else {
+        T.taskIdx++;
+        renderQuestion();
+      }
+    }
+    return;
   }
 }
-/* 渲染「下拉详情抽屉」的内容 HTML */
+/* 渲染「下拉详情抽屉」的内容 HTML —— 不背单词风格 */
 function renderWordSheetHTML(w) {
   const imgUrl = (w.imageIds && w.imageIds.length) ? imgURL(w.imageIds[0]) : null;
   const meanings = getMeanings(w);
   const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
   const meaningHtml = plainMeanings.length
     ? plainMeanings.map(m => `
-        <div class="lc-mean-row">
-          ${m.pos ? `<span class="lc-pos">${esc(m.pos)}</span>` : ''}
-          <span class="lc-text">${esc(m.text)}</span>
+        <div class="ws-mean-row">
+          ${m.pos ? `<span class="ws-pos">${esc(m.pos)}</span>` : '<span class="ws-pos"></span>'}
+          <span class="ws-text">${esc(m.text)}</span>
         </div>`).join('')
-    : '<div class="lc-mean-row"><span class="lc-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
+    : '<div class="ws-mean-row"><span class="ws-pos"></span><span class="ws-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
   const phrases = splitWordPhrases(w);
   const sentences = splitWordSentences(w);
-  const phrasesBlock = renderPhrasesBlock(phrases, 3, 'wsMorePhrases');
-  const sentencesBlock = renderSentencesBlock(sentences, 2, 'wsMoreSentences');
+
+  const sentenceHtml = sentences.length ? `
+    <div class="ws-section">
+      <div class="ws-section-title">例句</div>
+      ${sentences.map(line => {
+        const { en, cn } = splitSentenceLine(line);
+        return `<div class="ws-sent">
+          <div class="ws-sent-en">${highlightWordInText(en, w.text)}</div>
+          ${cn ? `<div class="ws-sent-cn">${esc(cn)}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const phrasesHtml = phrases.length ? `
+    <div class="ws-section">
+      <div class="ws-section-title">词组搭配</div>
+      ${phrases.map(p => `<div class="ws-phrase">${esc(p)}</div>`).join('')}
+    </div>` : '';
+
+  const imgHtml = imgUrl ? `
+    <div class="ws-section">
+      <div class="ws-section-title">我的图片</div>
+      <img class="ws-img" src="${imgUrl}" alt="">
+    </div>` : '';
 
   return `
     <div class="word-sheet" id="wordSheet">
       <div class="word-sheet-panel" id="wordSheetPanel">
-        ${imgUrl ? `<img class="lc-img" src="${imgUrl}" alt="">` : ''}
-        <div class="lc-word" style="margin-top:6px">${esc(w.text)}</div>
-        ${w.phonetic ? `<div class="lc-phonetic">${esc(w.phonetic)}</div>` : ''}
-        <div class="lc-meanings">${meaningHtml}</div>
-        <button class="btn primary block lg" id="wordSheetClose" style="margin-top:8px">收起</button>
-        ${phrasesBlock}
-        ${sentencesBlock}
+        <div class="ws-head">
+          <div class="ws-word-wrap">
+            <div class="ws-word">${esc(w.text)}</div>
+            ${w.phonetic ? `<div class="ws-phon">${esc(w.phonetic)}</div>` : ''}
+          </div>
+          <button class="ws-speak" id="wsSpeak" title="发音">🔊</button>
+        </div>
+        <div class="ws-meanings">${meaningHtml}</div>
+        ${sentenceHtml}
+        ${phrasesHtml}
+        ${imgHtml}
+        <button class="btn primary block lg" id="wordSheetClose" style="margin-top:20px">收起</button>
       </div>
     </div>`;
 }
@@ -3713,13 +3932,9 @@ function bindPullHandle(word) {
   const closeBtn = $('#wordSheetClose');
   if (closeBtn) closeBtn.onclick = close;
 
-  // ── 词组 / 例句的「查看全部」 ──
-  const phrases = splitWordPhrases(word);
-  const sentences = splitWordSentences(word);
-  const _wsMP = $('#wsMorePhrases');
-  if (_wsMP) _wsMP.onclick = () => openListModal('全部词组', phrases, 'phrases');
-  const _wsMS = $('#wsMoreSentences');
-  if (_wsMS) _wsMS.onclick = () => openListModal('全部例句', sentences, 'sentences');
+  // 详情页里的大喇叭按钮
+  const _wsSpeakBtn = $('#wsSpeak');
+  if (_wsSpeakBtn) _wsSpeakBtn.onclick = () => Speech.speak(word.text);
 }
 
 function showLearnCard(word, ok) {
@@ -3737,27 +3952,54 @@ function showLearnCard(word, ok) {
   const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
   const meaningHtml = plainMeanings.length
     ? plainMeanings.map(m => `
-        <div class="lc-mean-row">
-          ${m.pos ? `<span class="lc-pos">${esc(m.pos)}</span>` : ''}
-          <span class="lc-text">${esc(m.text)}</span>
+        <div class="ws-mean-row">
+          ${m.pos ? `<span class="ws-pos">${esc(m.pos)}</span>` : '<span class="ws-pos"></span>'}
+          <span class="ws-text">${esc(m.text)}</span>
         </div>`).join('')
-    : '<div class="lc-mean-row"><span class="lc-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
+    : '<div class="ws-mean-row"><span class="ws-pos"></span><span class="ws-text" style="color:var(--muted)">— 暂无释义 —</span></div>';
 
   const phrases = splitWordPhrases(w);
   const sentences = splitWordSentences(w);
-  const phrasesBlock = renderPhrasesBlock(phrases, 3, 'lcMorePhrases');
-  const sentencesBlock = renderSentencesBlock(sentences, 1, 'lcMoreSentences');
+
+  const sentenceHtml = sentences.length ? `
+    <div class="ws-section">
+      <div class="ws-section-title">例句</div>
+      ${sentences.map(line => {
+        const { en, cn } = splitSentenceLine(line);
+        return `<div class="ws-sent">
+          <div class="ws-sent-en">${highlightWordInText(en, w.text)}</div>
+          ${cn ? `<div class="ws-sent-cn">${esc(cn)}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const phrasesHtml = phrases.length ? `
+    <div class="ws-section">
+      <div class="ws-section-title">词组搭配</div>
+      ${phrases.map(p => `<div class="ws-phrase">${esc(p)}</div>`).join('')}
+    </div>` : '';
+
+  const imgHtml = imgUrl ? `
+    <div class="ws-section">
+      <div class="ws-section-title">我的图片</div>
+      <img class="ws-img" src="${imgUrl}" alt="">
+    </div>` : '';
 
   $('#testRun').innerHTML = `
     <div class="quiz-progress">${progressText}</div>
-    <div class="learn-card ${ok ? 'ok' : 'bad'}">
-      ${imgUrl ? `<img class="lc-img" src="${imgUrl}" alt="">` : ''}
-      <div class="lc-word">${esc(w.text)}</div>
-      ${w.phonetic ? `<div class="lc-phonetic">${esc(w.phonetic)}</div>` : ''}
-      <div class="lc-meanings">${meaningHtml}</div>
-      <button class="btn primary block lg" id="lcNextBtn" style="margin-top:4px">下一题</button>
-      ${phrasesBlock}
-      ${sentencesBlock}
+    <div class="quiz-card" style="padding:20px 18px">
+      <div class="ws-head">
+        <div class="ws-word-wrap">
+          <div class="ws-word">${esc(w.text)}</div>
+          ${w.phonetic ? `<div class="ws-phon">${esc(w.phonetic)}</div>` : ''}
+        </div>
+        <button class="ws-speak" id="lcSpeak" title="发音">🔊</button>
+      </div>
+      <div class="ws-meanings">${meaningHtml}</div>
+      ${sentenceHtml}
+      ${phrasesHtml}
+      ${imgHtml}
+      <button class="btn primary block lg" id="lcNextBtn" style="margin-top:20px">下一题</button>
     </div>`;
 
   if (_learnEnterHandler) {
@@ -3779,10 +4021,8 @@ function showLearnCard(word, ok) {
     if (e.key === 'Enter') { e.preventDefault(); goNext(); }
   };
   document.addEventListener('keydown', _learnEnterHandler);
-  const _lcMP = $('#lcMorePhrases');
-  if (_lcMP) _lcMP.onclick = () => openListModal('全部词组', phrases, 'phrases');
-  const _lcMS = $('#lcMoreSentences');
-  if (_lcMS) _lcMS.onclick = () => openListModal('全部例句', sentences, 'sentences');
+  const _lcSpeak = $('#lcSpeak');
+  if (_lcSpeak) _lcSpeak.onclick = () => Speech.speak(w.text);
   $('#lcNextBtn').onclick = goNext;
   setTimeout(() => { $('#lcNextBtn').focus(); }, 60);
 }
@@ -3809,6 +4049,7 @@ function saveTestProgress() {
       v: 1,
       ts: nowMs(),
       mode: T.mode,
+      phase: T.phase || 'learn',
       batches: (T.batches || []).map(b => b.map(w => w.id)),
       batchIdx: T.batchIdx || 0,
       tasks: T.tasks.map(t => ({ wid: t.word.id, stage: t.stage })),
@@ -3852,6 +4093,7 @@ function restoreTestProgress(s) {
   if (!tasks.length) return false;
 
   T.mode = s.mode || 'learn';
+  T.phase = s.phase || 'learn';
   T.batches = (s.batches || []).map(b => pick(b));
   T.batchIdx = s.batchIdx || 0;
   T.tasks = tasks;
@@ -3884,19 +4126,24 @@ function updateExitButton() {
   btn.hidden = !inTest;
 }
 
-/* 按批次号重建该批次的任务队列（不依赖切片，避免被错题数组污染） */
+/* 按批次号重建该批次的学习任务队列（每个词依次走 5 步） */
 function buildBatchTasks(batchIdx) {
-  const st = Object.assign({ choice: true, spell: true, reverse: true },
-                            S.settings.testStages || {});
-  const stages = ['example'];
-  if (st.choice)  stages.push('choice');
-  if (st.spell)   stages.push('spell');
-  if (st.reverse) stages.push('reverse');
   const batch = T.batches[batchIdx] || [];
   const tasks = [];
-  for (const stage of stages)
-    for (const word of batch)
+  for (const word of batch) {
+    for (const stage of LEARN_STAGES) {
       tasks.push({ word, stage });
+    }
+  }
+  return tasks;
+}
+
+/* 按批次号重建该批次的拼写任务队列（看图拼词 → 看中文拼英文） */
+function buildSpellTasks(batchIdx) {
+  const batch = T.batches[batchIdx] || [];
+  const tasks = [];
+  for (const word of batch) tasks.push({ word, stage: 'spell' });
+  for (const word of batch) tasks.push({ word, stage: 'reverse' });
   return tasks;
 }
 
@@ -3915,11 +4162,10 @@ function settleBatchProgress() {
 }
 
 function endRound() {
+  // ── 复习模式 ──
   if (T.mode === 'review') {
     const firstStage = T.tasks[0] && T.tasks[0].stage;
-    // 选择题阶段结束 → 「全部完成」页
     if (firstStage === 'review-choice') return showReviewSummary();
-    // 拼写阶段：有错题 → 重测到全对；否则 → 结果页
     if (T.roundWrong.length > 0) {
       const wrongWords = dedupWords(T.roundWrong);
       T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
@@ -3930,38 +4176,57 @@ function endRound() {
     }
     return showResult();
   }
+
   if (T.mode !== 'learn') return showResult();
 
-  // ★ 首轮批次结束 → 结算这一批的学习进度（错题重测阶段不再结算）
-  if (!T.batchSettled) {
-    settleBatchProgress();
-    T.batchSettled = true;
-  }
-
-  // 有错词 → 本轮重测
-  if (T.roundWrong.length > 0) {
-    const wrongWords = dedupWords(T.roundWrong);
-    T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
-    T.taskIdx = 0;
-    T.round++;
-    T.roundWrong = [];
-    return showRoundBreak(wrongWords.length);
-  }
-
-  // 无错词 → 检查是否还有下一批
-  const nextBatchIdx = T.batchIdx + 1;
-  if (nextBatchIdx < T.batches.length) {
-    T.batchIdx = nextBatchIdx;
-    T.tasks = buildBatchTasks(T.batchIdx);   // ★ 按批重建，不再切片
+  // ── 学习阶段结束 → 进入拼写阶段 ──
+  if (T.phase === 'learn') {
+    T.phase = 'spell';
+    T.tasks = buildSpellTasks(T.batchIdx);
     T.taskIdx = 0;
     T.round = 1;
-    T.roundErrMap = {};                      // ★ 新批次清零
-    T.batchSettled = false;                  // ★ 新批次未结算
-    return showBatchBreak(nextBatchIdx + 1, T.batches.length);
+    T.roundWrong = [];
+    T.firstRoundTotal = 0;
+    T.firstRoundCorrect = 0;
+    T.roundErrMap = {};
+    T.batchSettled = false;
+    return showSpellBreak();
   }
 
-  // 全部完成
-  showResult();
+  // ── 拼写阶段结束 ──
+  if (T.phase === 'spell') {
+    // 首轮拼写结束 → 结算本批进度
+    if (!T.batchSettled) {
+      settleBatchProgress();
+      T.batchSettled = true;
+    }
+
+    // 有错词 → 重测
+    if (T.roundWrong.length > 0) {
+      const wrongWords = dedupWords(T.roundWrong);
+      T.tasks = wrongWords.map(w => ({ word: w, stage: 'reverse' }));
+      T.taskIdx = 0;
+      T.round++;
+      T.roundWrong = [];
+      return showRoundBreak(wrongWords.length);
+    }
+
+    // 无错词 → 检查是否还有下一批
+    const nextBatchIdx = T.batchIdx + 1;
+    if (nextBatchIdx < T.batches.length) {
+      T.batchIdx = nextBatchIdx;
+      T.phase = 'learn';
+      T.tasks = buildBatchTasks(T.batchIdx);
+      T.taskIdx = 0;
+      T.round = 1;
+      T.roundErrMap = {};
+      T.batchSettled = false;
+      return showBatchBreak(nextBatchIdx + 1, T.batches.length);
+    }
+
+    // 全部完成
+    showResult();
+  }
 }
 
 /* 批次之间的过渡页 */
@@ -3998,6 +4263,46 @@ function showBatchBreak(batchNo, totalBatches) {
   document.addEventListener('keydown', _learnEnterHandler);
   $('#batchNextBtn').onclick = go;
   setTimeout(() => { $('#batchNextBtn').focus(); }, 60);
+}
+
+/* 学习阶段结束 → 进入拼写阶段的过渡页 */
+function showSpellBreak() {
+  saveTestProgress();
+  const batch = T.batches[T.batchIdx] || [];
+  $('#testRun').innerHTML = `
+    <div class="quiz-progress">学习完成</div>
+    <div class="learn-card ok">
+      <div class="lc-badge">✏️ 开始拼写</div>
+      <div style="text-align:center;padding:16px 0 6px">
+        <div style="font-size:48px;font-weight:800;line-height:1;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent">${batch.length}</div>
+        <div style="color:var(--muted);font-size:14px;margin-top:10px">个单词要拼写</div>
+      </div>
+      <div style="font-size:13.5px;color:var(--muted);line-height:1.7;text-align:center;padding:0 8px">
+        先看图拼词，再看中文拼英文<br>全部拼对 = 进度 100%，每错一次 -25%
+      </div>
+      <button class="btn primary block lg" id="spellStartBtn" style="margin-top:14px">开始拼写</button>
+    </div>`;
+
+  if (_learnEnterHandler) {
+    document.removeEventListener('keydown', _learnEnterHandler);
+    _learnEnterHandler = null;
+  }
+  let consumed = false;
+  const go = () => {
+    if (consumed) return;
+    consumed = true;
+    if (_learnEnterHandler) {
+      document.removeEventListener('keydown', _learnEnterHandler);
+      _learnEnterHandler = null;
+    }
+    renderQuestion();
+  };
+  _learnEnterHandler = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); go(); }
+  };
+  document.addEventListener('keydown', _learnEnterHandler);
+  $('#spellStartBtn').onclick = go;
+  setTimeout(() => { $('#spellStartBtn').focus(); }, 60);
 }
 
 function showRoundBreak(count) {

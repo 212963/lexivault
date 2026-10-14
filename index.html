@@ -6538,8 +6538,9 @@ function bindEvents() {
 /* ══════════════════════════════════════════════
    §7.5  手机返回键 / 侧滑拦截
    ══════════════════════════════════════════════ */
-let _atQuiz = false;      // 当前 history 栈顶是不是我们压的「答题层」
-let _baseBackAt = 0;      // 上次在主界面按返回的时间戳
+let _atQuiz = false;          // 当前 history 栈顶是不是我们压的「答题层」
+let _baseBackAt = 0;          // 上次在主界面按返回的时间戳
+let _baseBackTimer = null;    // 3 秒刷新计时器、
 
 /* 系统返回键触发的"退回上一级"——和左上角「←」做一样的事 */
 function doQuizBackFromSystem() {
@@ -6554,29 +6555,35 @@ function doQuizBackFromSystem() {
 }
 
 function initBackGuard() {
-  // 压一层守卫：用户第一次按返回时，浏览器会退到"真实上一页"，
+  // 压一层守卫：用户按返回时，浏览器会退到"真实上一页"，
   // 我们在 popstate 里把它拦回来
   history.pushState({ guard: true }, '');
 
   window.addEventListener('popstate', e => {
     const st = e.state || {};
 
-    // 刚落到守卫层，且刚才在答题 → 从答题退回主界面
+    // ① 从答题界面返回：保存进度 + 回到测试首页
     if (st.guard && _atQuiz) {
       _atQuiz = false;
       doQuizBackFromSystem();
       return;
     }
 
-    // 已经在守卫层，正常
+    // ② 落在守卫层，正常（例如用户往前点）
     if (st.guard) return;
 
-    // 用户在主界面按了返回
+    // ③ 落在「真实页」→ 用户在主界面按了返回
     const now = Date.now();
-    if (now - _baseBackAt < 2000) {
+
+    // 距上次不超过 3 秒 → 算"第二次" → 允许退出
+    if (_baseBackAt && now - _baseBackAt < 3000) {
       _baseBackAt = 0;
-      return;  // 2 秒内第二次 → 允许退出
+      // 用户此时还停在"真实页"上，再退一格才能真正退出到桌面
+      setTimeout(() => history.back(), 10);
+      return;
     }
+
+    // 第一次（或距上次超过 3 秒）→ 弹提示，压回守卫层
     _baseBackAt = now;
     history.pushState({ guard: true }, '');
     toast('再按一次返回退出', 'info');

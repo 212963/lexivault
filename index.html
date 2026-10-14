@@ -330,6 +330,42 @@ label:first-of-type{margin-top:0}
   border-radius:var(--img-radius);background:rgba(var(--text-rgb),.05);
   display:block;margin:0 auto;
 }
+
+/* ═══════════ 拼写题专用（看图拼词 / 看中拼英文） ═══════════ */
+.spell-img-wrap{
+  position:relative;width:100%;
+  border-radius:var(--img-radius);
+  overflow:hidden;
+  background:rgba(var(--text-rgb),.05);
+}
+.spell-img-wrap img{
+  width:100%;height:auto;
+  max-height:22vh;
+  object-fit:contain;
+  display:block;margin:0 auto;
+}
+.spell-img-cap{
+  position:absolute;left:0;right:0;bottom:0;
+  padding:8px 12px 9px;
+  background:linear-gradient(to top,
+    rgba(0,0,0,.9) 0%,
+    rgba(0,0,0,.68) 60%,
+    rgba(0,0,0,0) 100%);
+  color:#fff;font-size:12.5px;font-weight:700;line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+  pointer-events:none;
+}
+.spell-speak-btn{
+  position:absolute;top:8px;right:8px;
+  width:40px;height:40px;border-radius:12px;
+  background:rgba(0,0,0,.55);color:#fff;border:none;
+  display:grid;place-items:center;font-size:18px;
+  cursor:pointer;backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  transition:all .2s var(--ease);
+}
+.spell-speak-btn:active{transform:scale(.92);background:rgba(0,0,0,.75)}
 .spell-input{
   width:100%;margin-top:16px;padding:16px;
   text-align:center;font-size:24px;font-weight:800;
@@ -343,6 +379,51 @@ label:first-of-type{margin-top:0}
 .spell-input.bad{border-color:#ff6b81;box-shadow:0 0 0 4px rgba(255,107,129,.18);animation:shake .4s}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}
 .quiz-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:14px}
+
+/* 拼写题固定输入框（位于底部导航栏之上） */
+.spell-fixed-bottom{
+  position:fixed;left:0;right:0;
+  bottom:calc(var(--tabbar-h) + var(--safe-bottom));
+  padding:10px 16px 12px;
+  background:var(--bg);
+  border-top:1px solid var(--border);
+  z-index:15;
+}
+.spell-fixed-bottom[hidden]{display:none!important}
+.spell-fixed-bottom .spell-input{margin-top:0}
+
+/* 拼写模式：给滚动内容留出输入框空间 */
+#testRun.spell-mode{padding-bottom:0}
+#testRun.spell-mode > *:last-child{margin-bottom:76px}
+
+/* 看中拼英文：底部两个并排按钮 */
+.rev-actions{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;
+}
+
+/* 图片预览弹窗（模糊背景） */
+.img-preview-modal{
+  position:fixed;inset:0;z-index:9996;
+  background:rgba(0,0,0,.72);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  display:none;align-items:center;justify-content:center;
+  padding:28px;
+  animation:fadeIn .22s var(--ease);
+}
+.img-preview-modal.open{display:flex}
+.img-preview-modal img{
+  max-width:100%;max-height:78vh;
+  border-radius:16px;
+  box-shadow:0 24px 60px -12px rgba(0,0,0,.85);
+  background:rgba(var(--text-rgb),.05);
+}
+.img-preview-tip{
+  position:absolute;bottom:calc(30px + var(--safe-bottom));
+  left:50%;transform:translateX(-50%);
+  font-size:12px;color:rgba(255,255,255,.7);
+  letter-spacing:.4px;
+}
 .quiz-word{
   font-size:38px;font-weight:800;text-align:center;
   letter-spacing:-.8px;margin:6px 0 10px;
@@ -1406,6 +1487,13 @@ label:first-of-type{margin-top:0}
 
     <!-- 测试进行中 -->
     <div id="testRun" hidden></div>
+
+    <!-- ★ 拼写题固定输入框（始终在底部导航栏之上，不随题目刷新而移动） -->
+    <div id="spellFixedWrap" class="spell-fixed-bottom" hidden>
+      <input class="spell-input" id="spellInput" placeholder="输入英文单词"
+             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+             inputmode="text" enterkeyhint="done">
+    </div>
 
     <!-- 测试结果 -->
     <div id="testResult" hidden></div>
@@ -3265,27 +3353,28 @@ function startReview() {
 
 function bindSpellInput(word, stage) {
   const inp = $('#spellInput');
-  setTimeout(() => {
-    inp.focus();
-    // block:'nearest' → 只在必要时滚一点点，避免把图片顶出屏幕
-    inp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, 100);
-  inp.addEventListener('keydown', e => {
+  if (!inp) return;
+  setTimeout(() => { try { inp.focus(); } catch (e) {} }, 80);
+  // 键盘「完成 / 回车」= 提交
+  inp.onkeydown = e => {
     if (e.key === 'Enter') { e.preventDefault(); submitSpell(); }
-  });
-  $('#btnSubmitSpell').onclick = submitSpell;
-  const hintBtn = $('#btnHint');
-  if (hintBtn) {
-    if (stage === 'spell') {
-      hintBtn.onclick = () => showHintSentence(word);
-    } else {
-      hintBtn.onclick = () => {
-        inp.value = word.text[0];
-        inp.focus();
-      };
-    }
-  }
+  };
+  const speakBtn = $('#btnQuizSpeak');
+  if (speakBtn) speakBtn.onclick = () => Speech.speak(word.text);
 }
+/* 懒创建图片预览弹窗 */
+function ensureImgPreviewModal() {
+  let m = document.getElementById('imgPreviewModal');
+  if (m) return m;
+  m = document.createElement('div');
+  m.id = 'imgPreviewModal';
+  m.className = 'img-preview-modal';
+  m.innerHTML = `<img id="imgPreviewImg" src="" alt=""><div class="img-preview-tip">点击任意处关闭</div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', () => m.classList.remove('open'));
+  return m;
+}
+
 function renderQuestion() {
   if (T.taskIdx >= T.tasks.length) return endRound();
   saveTestProgress();   // ★ 每次切题都自动存档
@@ -3294,6 +3383,17 @@ function renderQuestion() {
   const w = task.word;
   const stage = task.stage;
   T.answered = false;
+
+  // ★ 拼写题：显示固定输入框；其余题型：隐藏
+  const isSpell = (stage === 'spell' || stage === 'reverse');
+  const fixedWrap = $('#spellFixedWrap');
+  if (fixedWrap) fixedWrap.hidden = !isSpell;
+  const runEl = $('#testRun');
+  if (runEl) runEl.classList.toggle('spell-mode', isSpell);
+  if (isSpell) {
+    const inp = $('#spellInput');
+    if (inp) inp.value = '';   // 新题清空
+  }
 
   let progressText;
   if (T.round === 1) {
@@ -3394,27 +3494,22 @@ function renderQuestion() {
     });
 
   } else if (stage === 'spell') {
+    const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
     $('#testRun').innerHTML = `
       <div class="quiz-header">
         <div class="quiz-progress">${progressText}</div>
         <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
       </div>
-      <div class="quiz-card">
-        <img class="quiz-img" src="${url}" alt="" style="max-height:20vh">
-        <button class="btn block" id="btnQuizSpeak" style="margin-top:10px;font-size:13.5px;min-height:38px">🔊 听发音</button>
-        <input class="spell-input" id="spellInput" placeholder="输入英文单词"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-               inputmode="text" enterkeyhint="done">
-        <div class="quiz-actions">
-          <button class="btn" id="btnHint">💡 提示</button>
-          <button class="btn primary" id="btnSubmitSpell">提交</button>
+      <div class="quiz-card" style="padding:14px">
+        <div class="spell-img-wrap">
+          <img src="${url}" alt="">
+          ${capText ? `<div class="spell-img-cap">${esc(capText)}</div>` : ''}
+          <button type="button" class="spell-speak-btn" id="btnQuizSpeak" title="听发音">🔊</button>
         </div>
-        <div class="quiz-feedback" id="quizFb"></div>
       </div>
       ${renderWordSheetHTML(w)}`;
     bindPullHandle(w);
     bindSpellInput(w, 'spell');
-    $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
     // 阶段2：看图拼词 —— 自动播放
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
 
@@ -3428,23 +3523,22 @@ function renderQuestion() {
         <div class="quiz-progress">${progressText}</div>
         <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
       </div>
-      <div class="quiz-card">
-        <img class="quiz-img" src="${url}" alt="" style="max-height:26vh">
-        <div class="rev-meaning" style="margin-top:10px">${meaning || '（无释义）'}</div>
-        <button class="btn block" id="btnQuizSpeak" style="margin-top:10px;font-size:13.5px;min-height:38px">🔊 听发音</button>
-        <input class="spell-input" id="spellInput" placeholder="输入英文单词"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-               inputmode="text" enterkeyhint="done">
-        <div class="quiz-actions">
-          <button class="btn" id="btnHint">💡 提示</button>
-          <button class="btn primary" id="btnSubmitSpell">提交</button>
+      <div class="quiz-card" style="padding:16px">
+        <div class="rev-meaning" style="margin-top:0">${meaning || '（无释义）'}</div>
+        <div class="rev-actions">
+          <button class="btn" id="btnQuizSpeak">🔊 听发音</button>
+          <button class="btn" id="btnShowImage">🖼 看图片</button>
         </div>
-        <div class="quiz-feedback" id="quizFb"></div>
       </div>
       ${renderWordSheetHTML(w)}`;
     bindPullHandle(w);
     bindSpellInput(w, 'reverse');
-    $('#btnQuizSpeak').onclick = () => Speech.speak(w.text);
+    $('#btnShowImage').onclick = () => {
+      const m = ensureImgPreviewModal();
+      const img = m.querySelector('#imgPreviewImg');
+      if (img) img.src = url;
+      m.classList.add('open');
+    };
     // 阶段3：看中拼英文 —— 不自动播放
 
   } else if (stage === 'review-choice') {

@@ -684,25 +684,12 @@ body.test-mode #testRun > .quiz-card{
 .ws-speak:active{transform:scale(.92);background:rgba(var(--accent-rgb),.16);color:var(--accent)}
 .ws-meanings{display:flex;flex-direction:column;gap:10px}
 .ws-mean-row{
-  display:flex;gap:10px;align-items:baseline;
+  display:flex;gap:6px;align-items:baseline;
   padding-bottom:8px;
   border-bottom:1px dashed var(--border);
 }
 .ws-mean-row:last-child{border-bottom:none;padding-bottom:0}
 
-/* ★ 词性贴近释义：min-width 从 44px 缩到 30px */
-.ws-pos{
-  flex-shrink:0;font-style:italic;font-weight:800;
-  color:var(--accent);font-size:14px;
-  min-width:30px;
-  padding-right:2px;
-}
-
-/* ★ 标题颜色加深 + 间距收紧 */
-.ws-section-title{
-  font-size:13px;font-weight:800;letter-spacing:.6px;
-  color:var(--text);margin-bottom:6px;
-}
 /* ★ 可折叠标题 */
 .ws-toggle{
   display:flex;align-items:center;justify-content:space-between;
@@ -719,15 +706,15 @@ body.test-mode #testRun > .quiz-card{
 .ws-pos{
   flex-shrink:0;font-style:italic;font-weight:800;
   color:var(--accent);font-size:14px;
-  min-width:44px;
+  min-width:20px;
 }
 .ws-text{font-size:15.5px;line-height:1.6;flex:1;word-break:break-word}
 .ws-section{margin-top:20px}
 .ws-section-title{
-  font-size:12px;font-weight:800;letter-spacing:.6px;
-  color:var(--muted);margin-bottom:10px;
+  font-size:13px;font-weight:800;letter-spacing:.6px;
+  color:var(--text);margin-bottom:4px;
 }
-.ws-sent{padding:9px 0}
+.ws-sent{padding:5px 0}
 .ws-sent + .ws-sent{border-top:1px dashed var(--border)}
 .ws-sent-en{
   font-size:15px;font-weight:600;line-height:1.6;

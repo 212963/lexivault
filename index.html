@@ -147,6 +147,32 @@ body.test-mode .quiz-card > .example-sentence{margin-top:auto}
   padding-top:8px;
 }
 .cz-choices{padding-bottom:16px}
+
+/* ★ 看词选图：单词居中 + 无框提示图标 */
+.choice-center{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-height:0;
+  padding-top:20px;
+  padding-bottom:6px;
+}
+.choice-hint-icon{
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  padding:0;
+  width:44px;height:44px;
+  display:grid;place-items:center;
+  margin-top:6px;
+  transition:color .2s var(--ease),transform .2s var(--ease);
+  -webkit-tap-highlight-color:transparent;
+}
+.choice-hint-icon svg{width:24px;height:24px}
+.choice-hint-icon:active{color:var(--accent);transform:scale(.92)}
 /* ★ 喇叭按钮：无框、只有图标、贴例句左下方 */
 .quiz-speak{
   border:none;
@@ -3624,14 +3650,21 @@ function renderQuestion() {
     const { en: hintEn } = splitSentenceLine(firstSent);
     $('#testRun').innerHTML = `
       <div class="quiz-card">
-        <div class="quiz-word">${esc(w.text)}</div>
-        <div id="hintWrap"></div>
-        <div style="text-align:center;margin-bottom:6px">
-          <button class="btn" id="btnChoiceHint" style="font-size:13.5px;min-height:38px">💡 提示</button>
+        <div class="choice-center">
+          <div class="quiz-word">${esc(w.text)}</div>
+          <div id="hintWrap"></div>
+          <button type="button" class="choice-hint-icon" id="btnChoiceHint" title="提示" aria-label="提示">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18h6"/>
+              <path d="M10 22h4"/>
+              <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
+            </svg>
+          </button>
         </div>
         <div class="quiz-grid">
           ${opts.map(o => {
-            const mt = meaningsToString(getMeanings(o.word));
+            const plain = getMeanings(o.word).filter(m => !isPhraseMeaning(m) && m.text && m.text.trim());
+            const mt = plain.map(m => (m.pos ? formatPos(m.pos) + ' ' : '') + m.text.trim()).join('；');
             return `<button class="quiz-opt" data-img="${o.imgId}">
               <img src="${imgURL(o.imgId)}" alt="">
               ${mt ? `<div class="quiz-opt-cap">${esc(mt)}</div>` : ''}
@@ -3647,9 +3680,9 @@ function renderQuestion() {
       if (!wrap) return;
       if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
       if (hintEn) {
-        wrap.innerHTML = `<div class="example-sentence" style="margin-bottom:8px">${highlightWordInText(hintEn, w.text)}</div>`;
+        wrap.innerHTML = `<div class="example-sentence" style="text-align:center;margin-top:6px">${highlightWordInText(hintEn, w.text)}</div>`;
       } else {
-        wrap.innerHTML = `<div class="example-sentence" style="color:var(--muted);font-size:14px">这个词还没有例句</div>`;
+        wrap.innerHTML = `<div class="example-sentence" style="text-align:center;color:var(--muted);font-size:14px;margin-top:6px">这个词还没有例句</div>`;
       }
     };
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);

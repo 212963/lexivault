@@ -6655,6 +6655,19 @@ function initBackGuard() {
 async function boot() {
   bindEvents();
 
+  // ★ 先画一遍骨架（数据还没到位，先用空数据把界面画出来），让第一帧就完整
+  applySettings();
+  refreshThemeButtons();
+  refreshLookupModeUI();
+  renderCreate();
+  renderLibrary();
+  renderTestHome();
+  renderLookup();
+  syncApiHzUI();
+  syncImgApiUI();
+  syncZhipuUI();
+  switchView('create');
+
   try {
     const [w, i, a] = await Promise.all([
       DB.getAll('words'), DB.getAll('images'), DB.getAll('articles'),

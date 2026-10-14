@@ -343,6 +343,18 @@ label:first-of-type{margin-top:0}
 }
 .rev-meaning i.rev-pos{color:var(--accent);font-style:italic;font-weight:700;font-size:13px;margin-right:5px}
 .hl-word{color:var(--accent);font-weight:800;font-style:normal}
+/* 例句里可点击的单词（查词用） */
+.glance-word{
+  cursor:pointer;
+  border-bottom:1px dashed rgba(var(--text-rgb),.22);
+  padding-bottom:1px;
+  transition:background .15s var(--ease),color .15s var(--ease);
+}
+.glance-word:active{
+  background:rgba(var(--accent-rgb),.2);
+  color:var(--accent);
+  border-bottom-color:transparent;
+}
 .quiz-feedback{text-align:center;margin-top:14px;font-size:15px;font-weight:700;min-height:22px}
 .quiz-feedback.ok{color:#3ddc97}
 .quiz-feedback.bad{color:#ff6b81}
@@ -2681,6 +2693,147 @@ function highlightWordInText(text, word) {
   if (last < raw.length) parts.push(esc(raw.slice(last)));
   return parts.join('');
 }
+/* 把例句渲染成 HTML：目标词（含词形变化）高亮、其余单词可点击查词 */
+function renderClickableSentence(text, targetWord) {
+  const raw = String(text || '');
+  if (!raw) return '';
+  const targetLow = String(targetWord || '').trim().toLowerCase();
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // 1. 先找出目标词（含词形变化）在原句里的位置区间
+  let targetRe = null;
+  if (targetLow) {
+    if (targetLow.length < 4) {
+      targetRe = new RegExp(`\\b${escRe(targetLow)}\\b`, 'gi');
+    } else {
+      const safe = escRe(targetLow);
+      const alts = [safe];
+      if (targetLow.endsWith('e')) {
+        const stem = escRe(targetLow.slice(0, -1));
+        alts.push(stem + 'ing', stem + 'ed');
+      }
+      if (targetLow.endsWith('y') && targetLow.length > 1 && !'aeiou'.includes(targetLow[targetLow.length - 2])) {
+        const stem = escRe(targetLow.slice(0, -1));
+        alts.push(stem + 'ies', stem + 'ied');
+      }
+      targetRe = new RegExp(`\\b(?:${alts.map(a => a + '[a-z]*').join('|')})\\b`, 'gi');
+    }
+  }
+  const targetRanges = [];
+  if (targetRe) {
+    let mm;
+    while ((mm = targetRe.exec(raw)) !== null) {
+      targetRanges.push([mm.index, mm.index + mm[0].length]);
+    }
+  }
+
+  // 2. 遍历英文单词，目标词用 hl-word，其余用 glance-word
+  const wordRe = /\b[A-Za-z][A-Za-z'-]*\b/g;
+  const parts = [];
+  let last = 0, m;
+  while ((m = wordRe.exec(raw)) !== null) {
+    const start = m.index, end = start + m[0].length;
+    if (start > last) parts.push(esc(raw.slice(last, start)));
+    const isTarget = targetRanges.some(([s, e]) => start >= s && end <= e);
+    if (isTarget) {
+      parts.push(`<span class="hl-word">${esc(m[0])}</span>`);
+    } else {
+      parts.push(`<span class="glance-word" data-w="${esc(m[0])}">${esc(m[0])}</span>`);
+    }
+    last = end;
+  }
+  if (last < raw.length) parts.push(esc(raw.slice(last)));
+  return parts.join('');
+}
+
+/* 轻量词形还原：carrying → carry / carrying / carrie…；studied → study / studie… */
+function guessLemma(word) {
+  const low = String(word || '').toLowerCase().trim();
+  if (!low) return [];
+  const out = [low];
+  if (low.endsWith('ies') && low.length > 4) out.push(low.slice(0, -3) + 'y');
+  if (low.endsWith('es')  && low.length > 3) out.push(low.slice(0, -2));
+  if (low.endsWith('s')   && low.length > 3) out.push(low.slice(0, -1));
+  if (low.endsWith('ing') && low.length > 5) {
+    const stem = low.slice(0, -3);
+    out.push(stem, stem + 'e');
+    if (stem.length > 2 && stem[stem.length - 1] === stem[stem.length - 2]) {
+      out.push(stem.slice(0, -1));
+    }
+  }
+  if (low.endsWith('ed') && low.length > 4) {
+    const stem = low.slice(0, -2);
+    out.push(stem, stem + 'e');
+    if (stem.length > 2 && stem[stem.length - 1] === stem[stem.length - 2]) {
+      out.push(stem.slice(0, -1));
+    }
+    if (stem.endsWith('i')) out.push(stem.slice(0, -1) + 'y');
+  }
+  if (low.endsWith('est') && low.length > 5) out.push(low.slice(0, -3));
+  if (low.endsWith('er')  && low.length > 4) out.push(low.slice(0, -2));
+  if (low.endsWith('ly')  && low.length > 4) out.push(low.slice(0, -2));
+  return [...new Set(out)];   // 去重
+}
+
+/* 点例句里的单词 → 本地词库 → 离线词典 → 接口盒子 → 弹窗显示 */
+async function showWordGlance(raw) {
+  const original = String(raw || '').trim();
+  if (!original) return;
+  const cands = guessLemma(original);
+
+  // 1. 本地词库
+  for (const c of cands) {
+    const w = S.words.find(x => (x.text || '').toLowerCase() === c);
+    if (w) { openLookupDetail(w); return; }
+  }
+
+  const modal = $('#lookupDetailModal');
+  if (modal) {
+    $('#lookupDetailBody').innerHTML =
+      `<div class="lookup-tip"><div class="big">⏳</div>正在查询「${esc(original)}」…</div>`;
+    modal.hidden = false;
+  }
+
+  // 2. 离线词典
+  for (const c of cands) {
+    try {
+      const entry = await Dict.lookup(c);
+      if (entry) { openDictDetail(entry); return; }
+    } catch (e) {}
+  }
+
+  // 3. 接口盒子
+  if (S.apiHz.id && S.apiHz.key) {
+    for (const c of cands) {
+      try {
+        const info = await fetchWordInfoFromApiHz(c);
+        if (info && info.meanings && info.meanings.length) {
+          openDictDetail({
+            word: c,
+            phonetic: info.phonetic || '',
+            meanings: info.meanings,
+            phrases: info.phrases || [],
+          });
+          return;
+        }
+      } catch (e) {}
+    }
+  }
+
+  // 4. 都查不到
+  if (modal) {
+    $('#lookupDetailBody').innerHTML = `
+      <div class="lookup-tip">
+        <div class="big">🤔</div>
+        没有找到「${esc(original)}」的释义
+      </div>
+      <button class="btn block lg" id="glanceCloseBtn" style="margin-top:10px">关闭</button>`;
+    modal.hidden = false;
+    const btn = $('#glanceCloseBtn');
+    if (btn) btn.onclick = () => { modal.hidden = true; };
+  }
+}
+
 /* 测试中「💡 提示」→ 在题目卡里显示"挖空版例句" */
 function showHintSentence(word, blank = true) {
   const sentences = splitWordSentences(word);
@@ -3066,8 +3219,8 @@ function renderQuestion() {
     $('#testRun').innerHTML = `
       <div class="quiz-progress">${progressText}</div>
       <div class="quiz-card">
-        <div class="rev-meaning" style="text-align:left;font-size:15px;font-weight:600;line-height:1.65;padding:14px 16px">
-          ${en ? highlightWordInText(en, w.text) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
+        <div class="rev-meaning" id="exampleSentence" style="text-align:left;font-size:15px;font-weight:600;line-height:1.65;padding:14px 16px">
+          ${en ? renderClickableSentence(en, w.text) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
         </div>
         <div style="text-align:center;margin:10px 0 4px">
           <button class="btn" id="btnExampleSpeak" style="font-size:13.5px;min-height:38px">🔊 再听一次</button>
@@ -3077,6 +3230,16 @@ function renderQuestion() {
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;
+
+    // ★ 例句里除目标词外的单词，点击可查词
+    const _sentEl = $('#exampleSentence');
+    if (_sentEl) {
+      _sentEl.addEventListener('click', e => {
+        const el = e.target.closest('.glance-word');
+        if (!el) return;
+        showWordGlance(el.dataset.w);
+      });
+    }
     // 自动朗读例句（出题 400ms 后）
     setTimeout(() => { if (!T.answered) Speech.speak(speakTarget); }, 400);
     $('#btnExampleSpeak').onclick = () => Speech.speak(speakTarget, { force: true });

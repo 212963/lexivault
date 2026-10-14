@@ -3434,7 +3434,7 @@ function buildReviewOptions(word) {
    ══════════════════════════════════════════════ */
 const LEARN_BATCH_SIZE = 10;
 /* 学习阶段的 5 步，顺序不能改 */
-const LEARN_STAGES = ['example', 'choice-zh', 'choice', 'self-sentence', 'self-word'];
+const LEARN_STAGES = ['example', 'choice-zh', 'choice', 'self-sentence'];
 
 /* 按 20 词一组，把未学习词切分 */
 function getUnlearnedWords() {
@@ -3548,7 +3548,6 @@ function renderQuestion() {
     'choice-zh': '看词选中文',
     choice: '看词选图',
     'self-sentence': '判断是否认识',
-    'self-word': '最后确认',
     spell: '看图拼词',
     reverse: '看中拼英文',
     'review-choice': '选中文',
@@ -3695,23 +3694,27 @@ function renderQuestion() {
     });
 
   } else if (stage === 'self-sentence') {
-    // 单词 + 例句 → 认识 / 不认识（模仿不背单词学习第二步）
+    // 看单词 → 认识 / 不认识（默认不显示例句，点 💡 才出现）
     const sents = splitWordSentences(w);
     const firstSent = sents[0] || '';
     const { en } = splitSentenceLine(firstSent);
     $('#testRun').innerHTML = `
-      <div class="quiz-progress">${progressText}</div>
-      <div class="quiz-card">
-        <div class="quiz-word">${esc(w.text)}</div>
-        ${w.phonetic ? `<div class="lc-phonetic" style="text-align:center;margin-top:-4px;margin-bottom:14px">${esc(w.phonetic)}</div>` : ''}
-        ${en ? `<div class="example-sentence">${highlightWordInText(en, w.text)}</div>` : ''}
-        <div style="text-align:center;margin-top:10px">
-          <button class="btn" id="btnSelfHint" style="font-size:13.5px;min-height:38px">💡 提示中文</button>
+      <div class="quiz-card" style="display:flex;flex-direction:column">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:24px">
+          <div class="quiz-word">${esc(w.text)}</div>
+          ${w.phonetic ? `<div class="ws-phon" style="text-align:center;margin-top:2px">${esc(w.phonetic)}</div>` : ''}
+          <button type="button" class="choice-hint-icon" id="btnSelfHint" title="提示" aria-label="提示">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18h6"/>
+              <path d="M10 22h4"/>
+              <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
+            </svg>
+          </button>
+          <div id="selfHintWrap" style="width:100%"></div>
         </div>
-        <div id="selfHintWrap"></div>
-        <div class="self-actions">
-          <button class="btn" id="btnNotKnow">不认识</button>
-          <button class="btn primary" id="btnKnow">认识</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 2px 4px;flex-shrink:0">
+          <button class="btn" id="btnNotKnow" style="min-height:56px;font-size:17px;font-weight:700">不认识</button>
+          <button class="btn" id="btnKnow" style="min-height:56px;font-size:17px;font-weight:700">认识</button>
         </div>
         <div class="quiz-feedback" id="quizFb"></div>
       </div>`;
@@ -3719,93 +3722,15 @@ function renderQuestion() {
       const wrap = $('#selfHintWrap');
       if (!wrap) return;
       if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
-      const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
-      const meaning = plainMeanings.map(m =>
-        (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
-      ).join('；');
-      wrap.innerHTML = `<div class="rev-meaning" style="margin-top:10px">${meaning || '（无释义）'}</div>`;
-    };
-    $('#btnKnow').onclick = () => { if (!T.answered) finishQuestion(true, w); };
-    $('#btnNotKnow').onclick = () => { if (!T.answered) finishQuestion(false, w); };
-    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
-
-  } else if (stage === 'self-word') {
-    // 只看单词 → 认识 / 不认识（模仿不背单词学习第三步）
-    $('#testRun').innerHTML = `
-      <div class="quiz-progress">${progressText}</div>
-      <div class="quiz-card">
-        <div class="quiz-word">${esc(w.text)}</div>
-        ${w.phonetic ? `<div class="lc-phonetic" style="text-align:center;margin-top:-4px;margin-bottom:14px">${esc(w.phonetic)}</div>` : ''}
-        <div class="self-actions">
-          <button class="btn" id="btnNotKnow">不认识</button>
-          <button class="btn primary" id="btnKnow">认识</button>
-        </div>
-        <div class="quiz-feedback" id="quizFb"></div>
-      </div>`;
-    $('#btnKnow').onclick = () => { if (!T.answered) finishQuestion(true, w); };
-    $('#btnNotKnow').onclick = () => { if (!T.answered) finishQuestion(false, w); };
-    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
-
-  } else if (stage === 'spell') {
-    const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
-    $('#testRun').innerHTML = `
-      <div class="quiz-card slide-in" style="padding:14px">
-        <div class="spell-img-wrap">
-          <img src="${url}" alt="">
-          ${capText ? `<div class="spell-img-cap">${esc(capText)}</div>` : ''}
-        </div>
-        <input class="spell-input-bare" id="spellInput" style="margin-top:16px"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-               inputmode="text" enterkeyhint="done">
-        <div style="text-align:center;margin-top:12px">
-          <button type="button" id="btnSpellHint"
-                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示音标</button>
-        </div>
-        <div id="spellHintWrap"></div>
-        <div class="quiz-feedback" id="quizFb"></div>
-      </div>`;
-    bindSpellInput(w, 'spell');
-    $('#btnSpellHint').onclick = () => {
-      const wrap = $('#spellHintWrap');
-      if (!wrap) return;
-      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
-      wrap.innerHTML = w.phonetic
-        ? `<div class="lc-phonetic" style="text-align:center;margin-top:4px">${esc(w.phonetic)}</div>`
-        : '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:4px">这个词没有音标</div>';
-    };
-    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
-
-  } else if (stage === 'reverse') {
-    const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
-    const meaning = plainMeanings.map(m =>
-      (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
-    ).join('；');
-    $('#testRun').innerHTML = `
-      <div class="quiz-card slide-in" style="padding:26px 20px 20px">
-        <input class="spell-input-bare" id="spellInput"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-               inputmode="text" enterkeyhint="done">
-        <div class="spell-rev-zh">${meaning || '（无释义）'}</div>
-        <div style="text-align:center;margin-top:14px">
-          <button type="button" id="btnRevHint"
-                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示例句</button>
-        </div>
-        <div id="revHintWrap"></div>
-        <div class="quiz-feedback" id="quizFb"></div>
-      </div>`;
-    bindSpellInput(w, 'reverse');
-    $('#btnRevHint').onclick = () => {
-      const wrap = $('#revHintWrap');
-      if (!wrap) return;
-      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
-      const sents = splitWordSentences(w);
-      if (!sents.length) {
-        wrap.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:10px">这个词没有例句</div>';
-        return;
+      if (en) {
+        wrap.innerHTML = `<div class="example-sentence" style="text-align:center;margin-top:10px">${highlightWordInText(en, w.text)}</div>`;
+      } else {
+        wrap.innerHTML = `<div class="example-sentence" style="text-align:center;color:var(--muted);font-size:14px;margin-top:10px">这个词还没有例句</div>`;
       }
-      const { en } = splitSentenceLine(sents[0]);
-      wrap.innerHTML = `<div class="example-sentence" style="text-align:center;margin-top:10px">${highlightWordInText(en, w.text)}</div>`;
     };
+    $('#btnKnow').onclick = () => { if (!T.answered) finishQuestion(true, w); };
+    $('#btnNotKnow').onclick = () => { if (!T.answered) finishQuestion(false, w); };
+    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
 
   } else if (stage === 'review-choice') {
     // 复习：看单词 + 图片 → 选 4 个中文意思之一
@@ -3911,12 +3836,12 @@ function finishQuestion(ok, word) {
     }
     gradeWord(word, ok);
     const fb = $('#quizFb');
-    if (fb) {
-      fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
+    if (fb && !ok) {
+      fb.className = 'quiz-feedback bad';
       if (stage === 'review-choice') {
-        fb.textContent = ok ? '✓ 正确' : `✗ 正确答案：${meaningsToString(getMeanings(word))}`;
+        fb.textContent = `✗ 正确答案：${meaningsToString(getMeanings(word))}`;
       } else {
-        fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+        fb.textContent = `✗ 正确答案：${word.text}`;
       }
     }
     if (stage === 'reverse' && !ok) {
@@ -3940,7 +3865,7 @@ function finishQuestion(ok, word) {
     gradeWord(word, ok);
 
     // 认识 / 不认识
-    if (stage === 'self-sentence' || stage === 'self-word') {
+    if (stage === 'self-sentence') {
       if (!ok) {
         // 不认识：把这个词的 5 步重新推到队尾，从头再走
         for (const s of LEARN_STAGES) {
@@ -3954,13 +3879,13 @@ function finishQuestion(ok, word) {
 
     // 前 3 步（example / choice-zh / choice）：无论对错都弹学习卡
     const fb = $('#quizFb');
-    if (fb) {
-      fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
+    if (fb && !ok) {
+      fb.className = 'quiz-feedback bad';
       if (stage === 'choice-zh') {
         const correctText = meaningsToString(getMeanings(word).filter(m => !isPhraseMeaning(m)));
-        fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${correctText}`;
+        fb.textContent = `✗ 正确答案：${correctText}`;
       } else {
-        fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+        fb.textContent = `✗ 正确答案：${word.text}`;
       }
     }
     Speech.speak(word.text);
@@ -3978,9 +3903,9 @@ function finishQuestion(ok, word) {
     }
     gradeWord(word, ok);
     const fb = $('#quizFb');
-    if (fb) {
-      fb.className = 'quiz-feedback ' + (ok ? 'ok' : 'bad');
-      fb.textContent = ok ? '✓ 正确！' : `✗ 正确答案：${word.text}`;
+    if (fb && !ok) {
+      fb.className = 'quiz-feedback bad';
+      fb.textContent = `✗ 正确答案：${word.text}`;
     }
     if (!ok) {
       Speech.speak(word.text);

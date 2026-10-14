@@ -124,6 +124,22 @@ body.test-mode .quiz-card > .example-sentence{margin-top:auto}
 }
 .quiz-back svg{width:22px;height:22px}
 .quiz-back:active{color:var(--accent);transform:scale(.92)}
+/* ★ 喇叭按钮：无框、只有图标、贴例句左下方 */
+.quiz-speak{
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  padding:0;
+  width:36px;height:36px;
+  display:grid;place-items:center;
+  align-self:flex-start;
+  margin-top:2px;
+  transition:color .2s var(--ease),transform .2s var(--ease);
+  -webkit-tap-highlight-color:transparent;
+}
+.quiz-speak svg{width:22px;height:22px}
+.quiz-speak:active{color:var(--accent);transform:scale(.92)}
 
 
 /* ═══════════ 顶部栏 ═══════════ */
@@ -3593,8 +3609,13 @@ function renderQuestion() {
         <div class="example-sentence" id="exampleSentence">
           ${en ? renderClickableSentence(en, w.text) : '<span style="color:var(--muted)">（这个词还没有例句）</span>'}
         </div>
-        <button class="btn" id="btnExampleSpeak"
-                style="font-size:13.5px;min-height:38px;align-self:flex-start;margin-top:6px">🔊 再听一次</button>
+        <button type="button" class="quiz-speak" id="btnExampleSpeak" title="再听一次" aria-label="再听一次">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 5 6 9H2v6h4l5 4z"/>
+            <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+            <path d="M19 5a10 10 0 0 1 0 14"/>
+          </svg>
+        </button>
         <div class="quiz-grid">
           ${opts.map(o => {
             return `<button class="quiz-opt" data-img="${o.imgId}">

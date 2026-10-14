@@ -326,7 +326,7 @@ label:first-of-type{margin-top:0}
   box-shadow:var(--shadow);animation:fadeUp .35s var(--ease);
 }
 .quiz-img{
-  width:100%;max-height:36vh;object-fit:contain;
+  width:100%;max-height:28vh;object-fit:contain;
   border-radius:var(--img-radius);background:rgba(var(--text-rgb),.05);
   display:block;margin:0 auto;
 }
@@ -3267,7 +3267,8 @@ function bindSpellInput(word, stage) {
   const inp = $('#spellInput');
   setTimeout(() => {
     inp.focus();
-    inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // block:'nearest' → 只在必要时滚一点点，避免把图片顶出屏幕
+    inp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 100);
   inp.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); submitSpell(); }
@@ -3399,7 +3400,7 @@ function renderQuestion() {
         <button type="button" class="quiz-detail-btn" id="btnShowDetail">📖 详情</button>
       </div>
       <div class="quiz-card">
-        <img class="quiz-img" src="${url}" alt="">
+        <img class="quiz-img" src="${url}" alt="" style="max-height:20vh">
         <button class="btn block" id="btnQuizSpeak" style="margin-top:10px;font-size:13.5px;min-height:38px">🔊 听发音</button>
         <input class="spell-input" id="spellInput" placeholder="输入英文单词"
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"

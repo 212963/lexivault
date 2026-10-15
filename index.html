@@ -423,12 +423,12 @@ body.test-mode .spell-card{
   display:flex;
   flex-direction:column;
   min-height:0;
-  padding:40px 0 10px;
+  padding:62px 0 10px;
 }
 .spell-img-wrap{
   position:relative;
   width:100%;
-  aspect-ratio:16/9;
+  aspect-ratio:16/10;
   flex-shrink:0;
   border-radius:var(--img-radius);
   overflow:hidden;
@@ -3615,6 +3615,7 @@ function renderSpellOrReverse_task(t) {
         </button>
       </div>`;
     bindSpellInput(w, 'spell');
+    $('#btnSpellSpeak').addEventListener('pointerdown', e => e.preventDefault());
     $('#btnSpellSpeak').onclick = () => Speech.speak(w.text, { force: true });
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
   } else {
@@ -3639,6 +3640,7 @@ function renderSpellOrReverse_task(t) {
         </button>
       </div>`;
     bindSpellInput(w, 'reverse');
+    $('#btnSpellSpeak').addEventListener('pointerdown', e => e.preventDefault());
     $('#btnSpellSpeak').onclick = () => Speech.speak(w.text, { force: true });
   }
   ensureQuizTopbar({ detail: false });
@@ -4020,8 +4022,6 @@ function submitSpell() {
     if (T.round === 1) T.firstRoundTotal++;
     T.firstRoundCorrect++;
     gradeWord(w, true);
-    const card = $('.quiz-card');
-    if (card) card.classList.add('slide-out');
     setTimeout(() => {
       T.taskIdx++;
       renderQuestion();
@@ -4064,14 +4064,8 @@ function finishQuestion(ok, word) {
       Speech.speak(word.text);
       setTimeout(() => showLearnCard(word, ok), 700);
     } else {
-      const card = $('.quiz-card');
-      if (card) {
-        card.classList.add('slide-out');
-        setTimeout(() => { T.taskIdx++; renderQuestion(); }, 260);
-      } else {
-        T.taskIdx++;
-        renderQuestion();
-      }
+      T.taskIdx++;
+      renderQuestion();
     }
     return;
   }
@@ -4111,14 +4105,8 @@ function finishQuestion(ok, word) {
         Speech.speak(word.text);
         setTimeout(() => showLearnCard(word, ok), 700);
       } else {
-        const card = $('.quiz-card');
-        if (card) {
-          card.classList.add('slide-out');
-          setTimeout(() => { T.taskIdx++; renderQuestion(); }, 260);
-        } else {
-          T.taskIdx++;
-          renderQuestion();
-        }
+        T.taskIdx++;
+        renderQuestion();
       }
       return;
     }
@@ -4130,18 +4118,12 @@ function finishQuestion(ok, word) {
         fb.className = 'quiz-feedback bad';
         fb.textContent = `✗ 正确答案：${word.text}`;
       }
-      const card = $('.quiz-card');
-      if (card) {
-        card.classList.add('slide-out');
-        setTimeout(() => { T.taskIdx++; renderQuestion(); }, 260);
-      } else {
-        T.taskIdx++;
-        renderQuestion();
-      }
+      T.taskIdx++;
+      renderQuestion();
       return;
     }
 
-    // 前 2 步（example / choice-zh）：无论对错都弹学习卡
+    // 前 2 步（example / choice-zh）
     const fb = $('#quizFb');
     if (fb && !ok) {
       fb.className = 'quiz-feedback bad';

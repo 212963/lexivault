@@ -465,22 +465,6 @@ body.test-mode .spell-card{
   align-items:center;
   padding:4px 0 6px;
 }
-.spell-phon-icon{
-  border:none;
-  background:transparent;
-  color:var(--muted);
-  cursor:pointer;
-  padding:0;
-  width:44px;
-  height:44px;
-  display:grid;
-  place-items:center;
-  margin-top:2px;
-  transition:color .2s var(--ease),transform .2s var(--ease);
-  -webkit-tap-highlight-color:transparent;
-}
-.spell-phon-icon svg{width:24px;height:24px}
-.spell-phon-icon:active{color:var(--accent);transform:scale(.92)}
 .spell-img-cap{
   position:absolute;left:0;right:0;bottom:0;
   padding:8px 12px 9px;
@@ -2917,6 +2901,7 @@ const T = {
   wordPool: [],         // 全部涉及到的词（用于结果页）
   roundErrMap: {},      // ★ 本轮每个词的答错次数：{ [wordId]: errCount }
   batchSettled: false,  // ★ 本批次是否已经结算过进度
+  spellPendingRetry: false,  // ★ 拼写答错、已显示正确答案，等用户按"完成"重做
 };
 
 let _learnEnterHandler = null;
@@ -3595,6 +3580,7 @@ function renderSpellOrReverse_task(t) {
   const w = t.word;
   const stage = t.stage;
   T.answered = false;
+  T.spellPendingRetry = false;
   const url = imgURL(w.imageIds[0]);
   if (stage === 'spell') {
     const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
@@ -3610,26 +3596,10 @@ function renderSpellOrReverse_task(t) {
           <input class="spell-input-bare" id="spellInput"
                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  inputmode="text" enterkeyhint="done">
-          <button type="button" class="spell-phon-icon" id="btnSpellHint" title="音标" aria-label="音标">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 5 6 9H2v6h4l5 4z"/>
-              <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
-              <path d="M19 5a10 10 0 0 1 0 14"/>
-            </svg>
-          </button>
-          <div id="spellHintWrap"></div>
           <div class="quiz-feedback" id="quizFb"></div>
         </div>
       </div>`;
     bindSpellInput(w, 'spell');
-    $('#btnSpellHint').onclick = () => {
-      const wrap = $('#spellHintWrap');
-      if (!wrap) return;
-      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
-      wrap.innerHTML = w.phonetic
-        ? `<div class="lc-phonetic" style="text-align:center;margin-top:4px">${esc(w.phonetic)}</div>`
-        : '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:4px">这个词没有音标</div>';
-    };
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
   } else {
     const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
@@ -4014,14 +3984,51 @@ function ensureQuizTopbar(opts) {
 }
 function submitSpell() {
   if (T.answered) return;
-  const w = T.tasks[T.taskIdx].word;
+  const task = T.tasks[T.taskIdx];
+  if (!task) return;
+  const w = task.word;
   const inp = $('#spellInput');
+  if (!inp) return;
+
+  // 情况 A：这题刚答错、已显示正确答案。用户按"完成" → 重做这道题
+  if (T.spellPendingRetry) {
+    T.spellPendingRetry = false;
+    inp.value = '';
+    inp.classList.remove('bad', 'ok');
+    const fb = $('#quizFb');
+    if (fb) { fb.textContent = ''; fb.className = 'quiz-feedback'; }
+    try { inp.focus(); } catch (e) {}
+    return;
+  }
+
   const val = inp.value.trim().toLowerCase();
   if (!val) return;
   const ok = val === w.text.toLowerCase();
-  inp.classList.add(ok ? 'ok' : 'bad');
-  if (!ok) inp.value = w.text;
-  finishQuestion(ok, w);
+
+  if (ok) {
+    // 答对：变绿 → 滑出 → 下一题
+    inp.classList.add('ok');
+    T.answered = true;
+    if (T.round === 1) T.firstRoundTotal++;
+    T.firstRoundCorrect++;
+    gradeWord(w, true);
+    const card = $('.quiz-card');
+    if (card) card.classList.add('slide-out');
+    setTimeout(() => {
+      T.taskIdx++;
+      renderQuestion();
+    }, 320);
+  } else {
+    // 答错：不弹详情、不显示底部正确答案，直接覆盖输入框内容 + 定格
+    inp.classList.add('bad');
+    inp.value = w.text;
+    T.spellPendingRetry = true;
+    if (T.round === 1) {
+      T.roundErrMap[w.id] = (T.roundErrMap[w.id] || 0) + 1;
+    }
+    gradeWord(w, false);
+    // 不前进，等用户再按"完成"
+  }
 }
 function finishQuestion(ok, word) {
   T.answered = true;

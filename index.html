@@ -88,11 +88,6 @@ body.test-mode{
   inset:0;
   width:100%;
   height:100%;
-  touch-action:none;
-}
-body.test-mode input,
-body.test-mode textarea{
-  touch-action:auto;
 }
 body.test-mode .content{padding:0}
 
@@ -457,25 +452,6 @@ body.test-mode .spell-card{
   flex:1 1 0;
   min-height:10px;
 }
-.spell-speak-btn{
-  user-select:none;
-  -webkit-user-select:none;
-  -webkit-touch-callout:none;
-  width:44px;
-  height:44px;
-  flex-shrink:0;
-  align-self:center;
-  border:none;
-  background:transparent;
-  color:var(--muted);
-  cursor:pointer;
-  display:grid;
-  place-items:center;
-  transition:color .2s var(--ease),transform .2s var(--ease);
-  -webkit-tap-highlight-color:transparent;
-}
-.spell-speak-btn svg{width:26px;height:26px}
-.spell-speak-btn:active{color:var(--accent);transform:scale(.92)}
 .spell-img-cap{
   position:absolute;left:0;right:0;bottom:0;
   padding:8px 12px 9px;
@@ -3576,54 +3552,18 @@ function startReview() {
   renderQuestion();
 }
 
-/* 音频按钮：点一下读单词，绝不推动页面、绝不收起键盘 */
+/* 音频按钮（顶部）：点一下读单词 */
 function bindSpellSpeakBtn(word) {
   const btn = $('#btnSpellSpeak');
   if (!btn) return;
-
   let lastAt = 0;
-
-  // 把所有可能被浏览器偷偷滚动的容器，全部拉回 0
-  const lockAll = () => {
-    try {
-      if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
-      const de = document.documentElement, b = document.body;
-      if (de.scrollTop !== 0) de.scrollTop = 0;
-      if (de.scrollLeft !== 0) de.scrollLeft = 0;
-      if (b.scrollTop !== 0) b.scrollTop = 0;
-      if (b.scrollLeft !== 0) b.scrollLeft = 0;
-      if (window.visualViewport && window.visualViewport.offsetTop !== 0) {
-        window.scrollTo(0, 0);
-      }
-    } catch (e) {}
-  };
-
-  const play = (e) => {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
+  btn.onclick = (e) => {
+    if (e) e.preventDefault();
     const now = Date.now();
     if (now - lastAt < 350) return;
     lastAt = now;
-
-    // ① 先播放
     Speech.speak(word.text, { force: true });
-
-    // ② 立即把 focus 拉回输入框（不改变键盘）
-    const inp = document.getElementById('spellInput');
-    if (inp && document.activeElement !== inp) {
-      try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
-    }
-
-    // ③ 连续多帧强制归位
-    lockAll();
-    requestAnimationFrame(lockAll);
-    setTimeout(lockAll, 16);
-    setTimeout(lockAll, 33);
-    setTimeout(lockAll, 60);
-    setTimeout(lockAll, 120);
-    setTimeout(lockAll, 250);
-    setTimeout(lockAll, 500);
   };
-  btn.onpointerdown = play;
 }
 
 function bindSpellInput(word, stage) {
@@ -3702,8 +3642,8 @@ function renderSpellOrReverse_task(t) {
     // ★ 不重新 bindSpellInput：只需要更新 dataset 里的词
     inp.dataset.word = w.text;
 
-    bindSpellSpeakBtn(w);   // 音频按钮要重新指向新单词
-    ensureQuizTopbar({ detail: false });
+    ensureQuizTopbar({ speak: true });
+    bindSpellSpeakBtn(w);
     return;
   }
 
@@ -3721,13 +3661,6 @@ function renderSpellOrReverse_task(t) {
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                inputmode="text" enterkeyhint="done">
         <div class="spell-spacer"></div>
-        <div class="spell-speak-btn" id="btnSpellSpeak" role="button" aria-label="发音">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M11 5 6 9H2v6h4l5 4z"/>
-            <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
-            <path d="M19 5a10 10 0 0 1 0 14"/>
-          </svg>
-        </div>
       </div>`;
   } else {
     const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
@@ -3742,18 +3675,11 @@ function renderSpellOrReverse_task(t) {
                inputmode="text" enterkeyhint="done">
         <div class="spell-rev-zh">${meaning || '（无释义）'}</div>
         <div class="spell-spacer"></div>
-        <div class="spell-speak-btn" id="btnSpellSpeak" role="button" aria-label="发音">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M11 5 6 9H2v6h4l5 4z"/>
-            <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
-            <path d="M19 5a10 10 0 0 1 0 14"/>
-          </svg>
-        </div>
       </div>`;
   }
   bindSpellInput(w, stage);
+  ensureQuizTopbar({ speak: true });
   bindSpellSpeakBtn(w);
-  ensureQuizTopbar({ detail: false });
 }
 
 function renderQuestion() {
@@ -4069,27 +3995,38 @@ function ensureQuizTopbar(opts) {
   if (card.querySelector('.quiz-topbar')) return;
   const bar = document.createElement('div');
   bar.className = 'quiz-topbar';
-  const detailBtnHtml = opts.detail
-    ? `<button type="button" class="quiz-icon-btn" id="btnShowDetail" aria-label="详情" title="详情">
-         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-         </svg>
-       </button>`
-    : '<div class="quiz-icon-spacer"></div>';
+
+  let rightHtml = '<div class="quiz-icon-spacer"></div>';
+  if (opts.speak) {
+    rightHtml = `<button type="button" class="quiz-icon-btn" id="btnSpellSpeak" aria-label="发音" title="发音">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5 6 9H2v6h4l5 4z"/>
+        <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+        <path d="M19 5a10 10 0 0 1 0 14"/>
+      </svg>
+    </button>`;
+  } else if (opts.detail) {
+    rightHtml = `<button type="button" class="quiz-icon-btn" id="btnShowDetail" aria-label="详情" title="详情">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+    </button>`;
+  }
+
   bar.innerHTML = `
     <button type="button" class="quiz-icon-btn" id="btnQuizBack" aria-label="返回" title="返回">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M19 12H5M12 19l-7-7 7-7"/>
       </svg>
     </button>
-    ${detailBtnHtml}
+    ${rightHtml}
   `;
   card.insertBefore(bar, card.firstChild);
 
   bar.querySelector('#btnQuizBack').onclick = () => {
     if (_atQuiz) {
-      history.back();  // 由 popstate 统一处理
+      history.back();
     } else {
       doQuizBackFromSystem();
     }

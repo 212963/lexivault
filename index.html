@@ -430,7 +430,7 @@ body.test-mode #testRun > .quiz-card{
   object-fit:contain;
   display:block;margin:0 auto;
 }
-/* ★ 看图拼词：图片区（上）+ 输入区（中下） */
+/* ★ 看图拼词：图片区（上）+ 输入区（下） */
 body.test-mode .spell-card{
   display:flex;
   flex-direction:column;
@@ -440,29 +440,29 @@ body.test-mode .spell-card{
   flex:1 1 auto;
   min-height:0;
   display:flex;
-  align-items:center;
-  justify-content:center;
-  padding-top:52px;
-  padding-bottom:6px;
+  padding:56px 0 10px;
 }
 .spell-img-zone .spell-img-wrap{
-  width:100%;
-  height:100%;
-  max-height:100%;
+  flex:1;
+  min-height:0;
+  position:relative;
+  border-radius:var(--img-radius);
+  overflow:hidden;
+  background:rgba(var(--text-rgb),.05);
 }
 .spell-img-zone .spell-img-wrap img{
   width:100%;
   height:100%;
   max-height:none;
   object-fit:cover;
+  display:block;
 }
 .spell-input-zone{
   flex:0 0 auto;
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:flex-start;
-  padding:14px 0 44px;
+  padding:6px 0 40px;
 }
 .spell-phon-icon{
   border:none;
@@ -474,14 +474,11 @@ body.test-mode .spell-card{
   height:44px;
   display:grid;
   place-items:center;
-  margin-top:6px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:20px;
-  font-weight:700;
-  letter-spacing:-.5px;
+  margin-top:2px;
   transition:color .2s var(--ease),transform .2s var(--ease);
   -webkit-tap-highlight-color:transparent;
 }
+.spell-phon-icon svg{width:24px;height:24px}
 .spell-phon-icon:active{color:var(--accent);transform:scale(.92)}
 .spell-img-cap{
   position:absolute;left:0;right:0;bottom:0;
@@ -500,6 +497,7 @@ body.test-mode .spell-card{
 /* ═══ 拼写阶段（看图拼词 / 看中文拼英文）═══ */
 .spell-input-bare{
   width:100%;
+  min-height:64px;
   padding:10px 0;
   text-align:center;
   font-size:38px;
@@ -3611,7 +3609,13 @@ function renderSpellOrReverse_task(t) {
           <input class="spell-input-bare" id="spellInput"
                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  inputmode="text" enterkeyhint="done">
-          <button type="button" class="spell-phon-icon" id="btnSpellHint" title="音标" aria-label="音标">/ə/</button>
+          <button type="button" class="spell-phon-icon" id="btnSpellHint" title="音标" aria-label="音标">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 5 6 9H2v6h4l5 4z"/>
+              <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+              <path d="M19 5a10 10 0 0 1 0 14"/>
+            </svg>
+          </button>
           <div id="spellHintWrap"></div>
           <div class="quiz-feedback" id="quizFb"></div>
         </div>
@@ -3663,7 +3667,7 @@ function renderSpellOrReverse_task(t) {
 
 function renderQuestion() {
   if (T.taskIdx >= T.tasks.length) return endRound();
-
+ 
   // ★ 拦截 spell / reverse：这两个题型走独立函数
   {
     const _t = T.tasks[T.taskIdx];

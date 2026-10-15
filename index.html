@@ -419,52 +419,47 @@ body.test-mode #testRun > .quiz-card{
 }
 
 /* ═══════════ 拼写题专用（看图拼词 / 看中拼英文） ═══════════ */
+body.test-mode .spell-card{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  padding:40px 0 10px;
+}
 .spell-img-wrap{
-  position:relative;width:100%;
+  position:relative;
+  width:100%;
+  aspect-ratio:16/9;
+  flex-shrink:0;
   border-radius:var(--img-radius);
   overflow:hidden;
   background:rgba(var(--text-rgb),.05);
 }
 .spell-img-wrap img{
-  width:100%;height:auto;
-  max-height:22vh;
-  object-fit:contain;
-  display:block;margin:0 auto;
-}
-/* ★ 看图拼词：图片区（上）+ 输入区（下） */
-body.test-mode .spell-card{
-  display:flex;
-  flex-direction:column;
-  min-height:0;
-}
-.spell-img-zone{
-  flex:1 1 auto;
-  min-height:0;
-  display:flex;
-  padding:46px 0 6px;
-}
-.spell-img-zone .spell-img-wrap{
-  flex:1;
-  min-height:0;
-  position:relative;
-  border-radius:var(--img-radius);
-  overflow:hidden;
-  background:rgba(var(--text-rgb),.05);
-}
-.spell-img-zone .spell-img-wrap img{
   width:100%;
   height:100%;
-  max-height:none;
   object-fit:cover;
   display:block;
 }
-.spell-input-zone{
-  flex:0 0 auto;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  padding:4px 0 6px;
+.spell-spacer{
+  flex:1 1 0;
+  min-height:10px;
 }
+.spell-speak-btn{
+  width:44px;
+  height:44px;
+  flex-shrink:0;
+  align-self:center;
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+  transition:color .2s var(--ease),transform .2s var(--ease);
+  -webkit-tap-highlight-color:transparent;
+}
+.spell-speak-btn svg{width:26px;height:26px}
+.spell-speak-btn:active{color:var(--accent);transform:scale(.92)}
 .spell-img-cap{
   position:absolute;left:0;right:0;bottom:0;
   padding:8px 12px 9px;
@@ -3569,13 +3564,29 @@ function bindSpellInput(word, stage) {
   const inp = $('#spellInput');
   if (!inp) return;
   setTimeout(() => { try { inp.focus(); } catch (e) {} }, 80);
-  // 键盘「完成」键 = 提交（手机键盘右下角的绿色按钮）
+
+  // 键盘「完成」键 = 提交
   inp.onkeydown = e => {
     if (e.key === 'Enter') { e.preventDefault(); submitSpell(); }
   };
+
+  // ★ 处在"显示正确答案"状态时，用户按任意键 → 清空重来
+  inp.oninput = () => {
+    if (!T.spellPendingRetry) return;
+    T.spellPendingRetry = false;
+    const answer = word.text;
+    const cur = inp.value;
+    let newText = '';
+    // 用户在答案后面追加了字符 → 只保留新增部分
+    if (cur.length > answer.length && cur.startsWith(answer)) {
+      newText = cur.slice(answer.length);
+    }
+    inp.value = newText;
+    inp.classList.remove('bad', 'ok');
+  };
 }
 
-/* ★ spell / reverse 单独处理（这两个分支曾经在文件里丢失） */
+/* ★ spell / reverse 单独处理 */
 function renderSpellOrReverse_task(t) {
   const w = t.word;
   const stage = t.stage;
@@ -3586,20 +3597,25 @@ function renderSpellOrReverse_task(t) {
     const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
     $('#testRun').innerHTML = `
       <div class="quiz-card spell-card">
-        <div class="spell-img-zone">
-          <div class="spell-img-wrap">
-            <img src="${url}" alt="">
-            ${capText ? `<div class="spell-img-cap">${esc(capText)}</div>` : ''}
-          </div>
+        <div class="spell-img-wrap">
+          <img src="${url}" alt="">
+          ${capText ? `<div class="spell-img-cap">${esc(capText)}</div>` : ''}
         </div>
-        <div class="spell-input-zone">
-          <input class="spell-input-bare" id="spellInput"
-                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                 inputmode="text" enterkeyhint="done">
-          <div class="quiz-feedback" id="quizFb"></div>
-        </div>
+        <div class="spell-spacer"></div>
+        <input class="spell-input-bare" id="spellInput"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               inputmode="text" enterkeyhint="done">
+        <div class="spell-spacer"></div>
+        <button type="button" class="spell-speak-btn" id="btnSpellSpeak" title="发音" aria-label="发音">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 5 6 9H2v6h4l5 4z"/>
+            <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+            <path d="M19 5a10 10 0 0 1 0 14"/>
+          </svg>
+        </button>
       </div>`;
     bindSpellInput(w, 'spell');
+    $('#btnSpellSpeak').onclick = () => Speech.speak(w.text, { force: true });
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
   } else {
     const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
@@ -3607,33 +3623,25 @@ function renderSpellOrReverse_task(t) {
       (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
     ).join('；');
     $('#testRun').innerHTML = `
-      <div class="quiz-card slide-in" style="padding:26px 20px 20px">
+      <div class="quiz-card spell-card">
+        <div class="spell-spacer"></div>
         <input class="spell-input-bare" id="spellInput"
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                inputmode="text" enterkeyhint="done">
         <div class="spell-rev-zh">${meaning || '（无释义）'}</div>
-        <div style="text-align:center;margin-top:14px">
-          <button type="button" id="btnRevHint"
-                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示例句</button>
-        </div>
-        <div id="revHintWrap"></div>
-        <div class="quiz-feedback" id="quizFb"></div>
+        <div class="spell-spacer"></div>
+        <button type="button" class="spell-speak-btn" id="btnSpellSpeak" title="发音" aria-label="发音">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 5 6 9H2v6h4l5 4z"/>
+            <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+            <path d="M19 5a10 10 0 0 1 0 14"/>
+          </svg>
+        </button>
       </div>`;
     bindSpellInput(w, 'reverse');
-    $('#btnRevHint').onclick = () => {
-      const wrap = $('#revHintWrap');
-      if (!wrap) return;
-      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
-      const sents = splitWordSentences(w);
-      if (!sents.length) {
-        wrap.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:10px">这个词没有例句</div>';
-        return;
-      }
-      const { en } = splitSentenceLine(sents[0]);
-      wrap.innerHTML = `<div class="example-sentence" style="text-align:center;margin-top:10px">${highlightWordInText(en, w.text)}</div>`;
-    };
+    $('#btnSpellSpeak').onclick = () => Speech.speak(w.text, { force: true });
   }
-  ensureQuizTopbar({ detail: stage === 'reverse' });
+  ensureQuizTopbar({ detail: false });
 }
 
 function renderQuestion() {
@@ -4017,7 +4025,7 @@ function submitSpell() {
     setTimeout(() => {
       T.taskIdx++;
       renderQuestion();
-    }, 320);
+    }, 1000);
   } else {
     // 答错：不弹详情、不显示底部正确答案，直接覆盖输入框内容 + 定格
     inp.classList.add('bad');

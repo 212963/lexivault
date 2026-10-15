@@ -446,6 +446,9 @@ body.test-mode .spell-card{
   min-height:10px;
 }
 .spell-speak-btn{
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
   width:44px;
   height:44px;
   flex-shrink:0;
@@ -3565,7 +3568,6 @@ function startReview() {
 function bindSpellSpeakBtn(word) {
   const btn = $('#btnSpellSpeak');
   if (!btn) return;
-  btn.setAttribute('tabindex', '-1');
 
   let lastAt = 0;
   const play = (e) => {
@@ -3574,33 +3576,36 @@ function bindSpellSpeakBtn(word) {
     if (now - lastAt < 350) return;
     lastAt = now;
     Speech.speak(word.text, { force: true });
-    const inp = $('#spellInput');
-    if (inp && document.activeElement !== inp) {
-      try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
-    }
+    // 不再手动 focus 输入框：div 不抢焦点，键盘全程不动
   };
-  btn.onpointerdown = play;    // ★ 覆盖式，不会叠加
+  btn.onpointerdown = play;
   btn.ontouchstart = play;
 }
 
 function bindSpellInput(word, stage) {
   const inp = $('#spellInput');
   if (!inp) return;
+
+  // 每次进来都把当前词记到 dataset 上（事件处理读 dataset 拿最新词）
+  inp.dataset.word = word.text;
+  inp.dataset.stage = stage;
+
+  // ★ 已经绑定过 → 只更新 dataset，不重新 focus、不重绑事件
+  if (inp._bound) return;
+  inp._bound = true;
+
   setTimeout(() => { try { inp.focus(); } catch (e) {} }, 80);
 
-  // 键盘「完成」键 = 提交
   inp.onkeydown = e => {
     if (e.key === 'Enter') { e.preventDefault(); submitSpell(); }
   };
 
-  // ★ 处在"显示正确答案"状态时，用户按任意键 → 清空重来
   inp.oninput = () => {
     if (!T.spellPendingRetry) return;
     T.spellPendingRetry = false;
-    const answer = word.text;
+    const answer = inp.dataset.word || '';
     const cur = inp.value;
     let newText = '';
-    // 用户在答案后面追加了字符 → 只保留新增部分
     if (cur.length > answer.length && cur.startsWith(answer)) {
       newText = cur.slice(answer.length);
     }
@@ -3646,14 +3651,14 @@ function renderSpellOrReverse_task(t) {
       }
     }
 
-    // 清空输入框 + 清掉上次的 ok/bad 颜色 + 保持焦点
+    // 清空输入框 + 清掉上次的 ok/bad 颜色
     inp.value = '';
     inp.classList.remove('ok', 'bad');
-    try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+    // ★ 不 focus：键盘保持现状（本来就聚焦）
+    // ★ 不重新 bindSpellInput：只需要更新 dataset 里的词
+    inp.dataset.word = w.text;
 
-    // 重新绑定（word 变了）
-    bindSpellInput(w, stage);
-    bindSpellSpeakBtn(w);
+    bindSpellSpeakBtn(w);   // 音频按钮要重新指向新单词
     ensureQuizTopbar({ detail: false });
     return;
   }
@@ -3672,13 +3677,13 @@ function renderSpellOrReverse_task(t) {
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                inputmode="text" enterkeyhint="done">
         <div class="spell-spacer"></div>
-        <button type="button" class="spell-speak-btn" id="btnSpellSpeak" title="发音" aria-label="发音">
+        <div class="spell-speak-btn" id="btnSpellSpeak" role="button" aria-label="发音">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 5 6 9H2v6h4l5 4z"/>
             <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
             <path d="M19 5a10 10 0 0 1 0 14"/>
           </svg>
-        </button>
+        </div>
       </div>`;
   } else {
     const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
@@ -3693,13 +3698,13 @@ function renderSpellOrReverse_task(t) {
                inputmode="text" enterkeyhint="done">
         <div class="spell-rev-zh">${meaning || '（无释义）'}</div>
         <div class="spell-spacer"></div>
-        <button type="button" class="spell-speak-btn" id="btnSpellSpeak" title="发音" aria-label="发音">
+        <div class="spell-speak-btn" id="btnSpellSpeak" role="button" aria-label="发音">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 5 6 9H2v6h4l5 4z"/>
             <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
             <path d="M19 5a10 10 0 0 1 0 14"/>
           </svg>
-        </button>
+        </div>
       </div>`;
   }
   bindSpellInput(w, stage);

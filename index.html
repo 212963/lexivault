@@ -88,6 +88,11 @@ body.test-mode{
   inset:0;
   width:100%;
   height:100%;
+  touch-action:none;
+}
+body.test-mode input,
+body.test-mode textarea{
+  touch-action:auto;
 }
 body.test-mode .content{padding:0}
 
@@ -3571,32 +3576,54 @@ function startReview() {
   renderQuestion();
 }
 
-/* 音频按钮：点一下读单词，但绝不抢焦点、绝不收起键盘、绝不推动方框 */
+/* 音频按钮：点一下读单词，绝不推动页面、绝不收起键盘 */
 function bindSpellSpeakBtn(word) {
   const btn = $('#btnSpellSpeak');
   if (!btn) return;
 
   let lastAt = 0;
+
+  // 把所有可能被浏览器偷偷滚动的容器，全部拉回 0
+  const lockAll = () => {
+    try {
+      if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
+      const de = document.documentElement, b = document.body;
+      if (de.scrollTop !== 0) de.scrollTop = 0;
+      if (de.scrollLeft !== 0) de.scrollLeft = 0;
+      if (b.scrollTop !== 0) b.scrollTop = 0;
+      if (b.scrollLeft !== 0) b.scrollLeft = 0;
+      if (window.visualViewport && window.visualViewport.offsetTop !== 0) {
+        window.scrollTo(0, 0);
+      }
+    } catch (e) {}
+  };
+
   const play = (e) => {
-    if (e) e.preventDefault();
+    if (e) { e.preventDefault(); e.stopPropagation(); }
     const now = Date.now();
     if (now - lastAt < 350) return;
     lastAt = now;
 
-    // ★ 播放前记录滚动位置，播放后强制还原
-    const sx = window.scrollX, sy = window.scrollY;
-
+    // ① 先播放
     Speech.speak(word.text, { force: true });
 
-    // 多点几次强制还原，覆盖浏览器的自动滚动
-    const restore = () => { if (window.scrollX !== sx || window.scrollY !== sy) window.scrollTo(sx, sy); };
-    requestAnimationFrame(restore);
-    setTimeout(restore, 30);
-    setTimeout(restore, 100);
-    setTimeout(restore, 250);
+    // ② 立即把 focus 拉回输入框（不改变键盘）
+    const inp = document.getElementById('spellInput');
+    if (inp && document.activeElement !== inp) {
+      try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+    }
+
+    // ③ 连续多帧强制归位
+    lockAll();
+    requestAnimationFrame(lockAll);
+    setTimeout(lockAll, 16);
+    setTimeout(lockAll, 33);
+    setTimeout(lockAll, 60);
+    setTimeout(lockAll, 120);
+    setTimeout(lockAll, 250);
+    setTimeout(lockAll, 500);
   };
   btn.onpointerdown = play;
-  btn.ontouchstart = play;
 }
 
 function bindSpellInput(word, stage) {

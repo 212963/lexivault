@@ -81,7 +81,14 @@ body::before{
 /* ★ 测试模式：顶栏 + 底部导航全隐藏，让题目占满全屏 */
 body.test-mode .topbar,
 body.test-mode .tabbar{display:none!important}
-body.test-mode{padding-bottom:0}
+body.test-mode{
+  padding-bottom:0;
+  overflow:hidden;
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+}
 body.test-mode .content{padding:0}
 
 /* ★ 测试模式：题目区占满全屏，卡片从状态栏下方一直撑到底部 */
@@ -3575,8 +3582,18 @@ function bindSpellSpeakBtn(word) {
     const now = Date.now();
     if (now - lastAt < 350) return;
     lastAt = now;
+
+    // ★ 播放前记录滚动位置，播放后强制还原
+    const sx = window.scrollX, sy = window.scrollY;
+
     Speech.speak(word.text, { force: true });
-    // 不再手动 focus 输入框：div 不抢焦点，键盘全程不动
+
+    // 多点几次强制还原，覆盖浏览器的自动滚动
+    const restore = () => { if (window.scrollX !== sx || window.scrollY !== sy) window.scrollTo(sx, sy); };
+    requestAnimationFrame(restore);
+    setTimeout(restore, 30);
+    setTimeout(restore, 100);
+    setTimeout(restore, 250);
   };
   btn.onpointerdown = play;
   btn.ontouchstart = play;

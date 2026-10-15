@@ -6838,9 +6838,14 @@ function doQuizBackFromSystem() {
 /* ★ 键盘弹出时，把 --app-h 设成"键盘上方的可见高度" */
 function initKeyboardWatcher() {
   const root = document.documentElement;
+  let lastH = 0;
   const update = () => {
     const vv = window.visualViewport;
     const h = vv ? vv.height : window.innerHeight;
+    // ★ 只在高度发生"大变化"（键盘弹出/收起，≥80px）时才更新
+    //   忽略点击音频按钮引起的视觉视口微调（几十像素）
+    if (lastH && Math.abs(h - lastH) < 80) return;
+    lastH = h;
     root.style.setProperty('--app-h', h + 'px');
   };
   if (window.visualViewport) {
@@ -6886,6 +6891,16 @@ function initBackGuard() {
     history.pushState({ guard: true }, '');
     toast('再按一次返回退出', 'info');
   });
+}
+
+/* ★ 答题模式下：禁止浏览器把整个页面偷偷滚动 */
+function initNoScrollGuard() {
+  window.addEventListener('scroll', () => {
+    if (!document.body.classList.contains('test-mode')) return;
+    if (window.scrollY !== 0 || window.scrollX !== 0) {
+      window.scrollTo(0, 0);
+    }
+  }, { passive: true });
 }
 
 async function boot() {
@@ -6942,6 +6957,7 @@ async function boot() {
   switchView('create');
   console.log(`[LexiVault Mobile] v${APP_VERSION} 已启动 · 单词 ${S.words.length} · 图片 ${S.images.length}`);
   initKeyboardWatcher();
+  initNoScrollGuard();
   initBackGuard();
 }
 

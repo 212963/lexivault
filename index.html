@@ -452,6 +452,22 @@ body.test-mode .spell-card{
   flex:1 1 0;
   min-height:10px;
 }
+.spell-speak-btn{
+  width:44px;
+  height:44px;
+  flex-shrink:0;
+  align-self:center;
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+  transition:color .2s var(--ease),transform .2s var(--ease);
+  -webkit-tap-highlight-color:transparent;
+}
+.spell-speak-btn svg{width:26px;height:26px}
+.spell-speak-btn:active{color:var(--accent);transform:scale(.92)}
 .spell-img-cap{
   position:absolute;left:0;right:0;bottom:0;
   padding:8px 12px 9px;
@@ -3552,18 +3568,25 @@ function startReview() {
   renderQuestion();
 }
 
-/* 音频按钮（顶部）：点一下读单词 */
+/* 音频按钮（底部，输入框下方）：点一下读单词 */
 function bindSpellSpeakBtn(word) {
   const btn = $('#btnSpellSpeak');
   if (!btn) return;
   let lastAt = 0;
-  btn.onclick = (e) => {
-    if (e) e.preventDefault();
+  const play = (e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
     const now = Date.now();
     if (now - lastAt < 350) return;
     lastAt = now;
     Speech.speak(word.text, { force: true });
+    // 焦点拉回输入框（键盘不变）
+    const inp = document.getElementById('spellInput');
+    if (inp && document.activeElement !== inp) {
+      try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+    }
   };
+  btn.ontouchstart = play;
+  btn.onmousedown = play;
 }
 
 function bindSpellInput(word, stage) {
@@ -3642,7 +3665,7 @@ function renderSpellOrReverse_task(t) {
     // ★ 不重新 bindSpellInput：只需要更新 dataset 里的词
     inp.dataset.word = w.text;
 
-    ensureQuizTopbar({ speak: true });
+    ensureQuizTopbar({ detail: false });
     bindSpellSpeakBtn(w);
     return;
   }
@@ -3660,7 +3683,13 @@ function renderSpellOrReverse_task(t) {
         <input class="spell-input-bare" id="spellInput"
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                inputmode="text" enterkeyhint="done">
-        <div class="spell-spacer"></div>
+        <button type="button" class="spell-speak-btn" id="btnSpellSpeak" aria-label="发音">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 5 6 9H2v6h4l5 4z"/>
+            <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+            <path d="M19 5a10 10 0 0 1 0 14"/>
+          </svg>
+        </button>
       </div>`;
   } else {
     const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
@@ -3674,11 +3703,17 @@ function renderSpellOrReverse_task(t) {
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                inputmode="text" enterkeyhint="done">
         <div class="spell-rev-zh">${meaning || '（无释义）'}</div>
-        <div class="spell-spacer"></div>
+        <button type="button" class="spell-speak-btn" id="btnSpellSpeak" aria-label="发音">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 5 6 9H2v6h4l5 4z"/>
+            <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+            <path d="M19 5a10 10 0 0 1 0 14"/>
+          </svg>
+        </button>
       </div>`;
   }
   bindSpellInput(w, stage);
-  ensureQuizTopbar({ speak: true });
+  ensureQuizTopbar({ detail: false });
   bindSpellSpeakBtn(w);
 }
 
@@ -3997,15 +4032,7 @@ function ensureQuizTopbar(opts) {
   bar.className = 'quiz-topbar';
 
   let rightHtml = '<div class="quiz-icon-spacer"></div>';
-  if (opts.speak) {
-    rightHtml = `<button type="button" class="quiz-icon-btn" id="btnSpellSpeak" aria-label="发音" title="发音">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M11 5 6 9H2v6h4l5 4z"/>
-        <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
-        <path d="M19 5a10 10 0 0 1 0 14"/>
-      </svg>
-    </button>`;
-  } else if (opts.detail) {
+  if (opts.detail) {
     rightHtml = `<button type="button" class="quiz-icon-btn" id="btnShowDetail" aria-label="详情" title="详情">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -6823,9 +6850,9 @@ function initKeyboardWatcher() {
   const update = () => {
     const vv = window.visualViewport;
     const h = vv ? vv.height : window.innerHeight;
-    // ★ 只在高度发生"大变化"（键盘弹出/收起，≥80px）时才更新
+    // ★ 只在高度发生"大变化"（键盘弹出/收起，≥150px）时才更新
     //   忽略点击音频按钮引起的视觉视口微调（几十像素）
-    if (lastH && Math.abs(h - lastH) < 80) return;
+    if (lastH && Math.abs(h - lastH) < 150) return;
     lastH = h;
     root.style.setProperty('--app-h', h + 'px');
   };

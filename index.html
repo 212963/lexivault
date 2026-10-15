@@ -88,8 +88,9 @@ body.test-mode .content{padding:0}
 body.test-mode #view-test{
   display:flex;
   flex-direction:column;
-  min-height:100dvh;
-  padding:calc(var(--safe-top) + 12px) 16px calc(var(--safe-bottom) + 16px);
+  height:var(--app-h, 100dvh);
+  min-height:0;
+  padding:calc(var(--safe-top) + 8px) 16px calc(var(--safe-bottom) + 8px);
   box-sizing:border-box;
 }
 body.test-mode #testRun{
@@ -440,7 +441,7 @@ body.test-mode .spell-card{
   flex:1 1 auto;
   min-height:0;
   display:flex;
-  padding:56px 0 10px;
+  padding:46px 0 6px;
 }
 .spell-img-zone .spell-img-wrap{
   flex:1;
@@ -462,7 +463,7 @@ body.test-mode .spell-card{
   display:flex;
   flex-direction:column;
   align-items:center;
-  padding:6px 0 40px;
+  padding:4px 0 6px;
 }
 .spell-phon-icon{
   border:none;
@@ -6771,7 +6772,24 @@ function doQuizBackFromSystem() {
   toast('已保存进度，下次可继续', 'ok');
 }
 
+/* ★ 键盘弹出时，把 --app-h 设成"键盘上方的可见高度" */
+function initKeyboardWatcher() {
+  const root = document.documentElement;
+  const update = () => {
+    const vv = window.visualViewport;
+    const h = vv ? vv.height : window.innerHeight;
+    root.style.setProperty('--app-h', h + 'px');
+  };
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', update);
+    window.visualViewport.addEventListener('scroll', update);
+  }
+  window.addEventListener('orientationchange', () => setTimeout(update, 200));
+  update();
+}
+
 function initBackGuard() {
+
   // 压一层守卫：用户按返回时，浏览器会退到"真实上一页"，
   // 我们在 popstate 里把它拦回来
   history.pushState({ guard: true }, '');
@@ -6860,6 +6878,7 @@ async function boot() {
   syncZhipuUI();
   switchView('create');
   console.log(`[LexiVault Mobile] v${APP_VERSION} 已启动 · 单词 ${S.words.length} · 图片 ${S.images.length}`);
+  initKeyboardWatcher();
   initBackGuard();
 }
 

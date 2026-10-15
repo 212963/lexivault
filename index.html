@@ -3561,6 +3561,30 @@ function startReview() {
   renderQuestion();
 }
 
+/* 音频按钮：点一下读单词，但绝不抢焦点、绝不收起键盘、绝不推动方框 */
+function bindSpellSpeakBtn(word) {
+  const btn = $('#btnSpellSpeak');
+  if (!btn) return;
+  btn.setAttribute('tabindex', '-1');   // 不能获得焦点
+
+  let lastAt = 0;
+  const play = (e) => {
+    if (e) e.preventDefault();
+    const now = Date.now();
+    if (now - lastAt < 350) return;     // 防双击/双触发
+    lastAt = now;
+    Speech.speak(word.text, { force: true });
+    // 把焦点"喂"回输入框，键盘保持不变
+    const inp = $('#spellInput');
+    if (inp && document.activeElement !== inp) {
+      try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+    }
+  };
+  btn.addEventListener('pointerdown', play);
+  // 保底：部分浏览器 pointerdown 后不触发 click，用 touchstart 兜底
+  btn.addEventListener('touchstart', play, { passive: false });
+}
+
 function bindSpellInput(word, stage) {
   const inp = $('#spellInput');
   if (!inp) return;
@@ -3616,9 +3640,7 @@ function renderSpellOrReverse_task(t) {
         </button>
       </div>`;
     bindSpellInput(w, 'spell');
-    $('#btnSpellSpeak').addEventListener('pointerdown', e => e.preventDefault());
-    $('#btnSpellSpeak').onclick = () => Speech.speak(w.text, { force: true });
-    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
+    bindSpellSpeakBtn(w);
   } else {
     const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
     const meaning = plainMeanings.map(m =>
@@ -3641,8 +3663,7 @@ function renderSpellOrReverse_task(t) {
         </button>
       </div>`;
     bindSpellInput(w, 'reverse');
-    $('#btnSpellSpeak').addEventListener('pointerdown', e => e.preventDefault());
-    $('#btnSpellSpeak').onclick = () => Speech.speak(w.text, { force: true });
+    bindSpellSpeakBtn(w);
   }
   ensureQuizTopbar({ detail: false });
 }

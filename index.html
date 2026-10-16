@@ -4205,15 +4205,36 @@ function finishQuestion(ok, word) {
       return;
     }
 
-    // ★ 看词选图：不弹学习卡，答完直接下一题
+    // ★ 看词选图：选对停 1 秒进下一题；选错停 1 秒弹详情页，收起后进下一题
     if (stage === 'choice') {
       const fb = $('#quizFb');
       if (fb && !ok) {
         fb.className = 'quiz-feedback bad';
         fb.textContent = `✗ 正确答案：${word.text}`;
       }
-      T.taskIdx++;
-      renderQuestion();
+
+      if (ok) {
+        // 选对：绿光已亮 → 停 1 秒 → 下一题
+        setTimeout(() => {
+          T.taskIdx++;
+          renderQuestion();
+        }, 1000);
+      } else {
+        // 选错：红光已亮 → 停 1 秒 → 弹详情页 → 收起后进下一题
+        setTimeout(() => {
+          const sheet = document.getElementById('wordSheet');
+          if (!sheet) { T.taskIdx++; renderQuestion(); return; }
+          sheet.classList.add('open');
+          const closeBtn = document.getElementById('wordSheetClose');
+          if (closeBtn) {
+            closeBtn.onclick = () => {
+              sheet.classList.remove('open');
+              T.taskIdx++;
+              renderQuestion();
+            };
+          }
+        }, 1000);
+      }
       return;
     }
 

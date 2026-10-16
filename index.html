@@ -3627,6 +3627,15 @@ function renderSpellOrReverse_task(t) {
   T.spellPendingRetry = false;
   const url = imgURL(w.imageIds[0]);
 
+  // ★ 从其他题型切进来 → 重置锁状态，等键盘弹出时锁
+  if (!_spellLockOn) {
+    _spellLockOn = true;
+    _appHLocked = false;
+    const vv = window.visualViewport;
+    const h = vv ? vv.height : window.innerHeight;
+    document.documentElement.style.setProperty('--app-h', h + 'px');
+  }
+
   // 上一题和这一题是不是同一种题型？（决定能不能复用 DOM）
   const card = document.querySelector('#testRun .spell-card');
   const inp  = document.getElementById('spellInput');
@@ -3727,6 +3736,15 @@ function renderQuestion() {
       renderSpellOrReverse_task(_t);
       return;
     }
+  }
+
+  // ★ 非拼写题：解除锁，让 --app-h 跟着键盘实时变化
+  if (_spellLockOn) {
+    _spellLockOn = false;
+    _appHLocked = false;
+    const vv = window.visualViewport;
+    const h = vv ? vv.height : window.innerHeight;
+    document.documentElement.style.setProperty('--app-h', h + 'px');
   }
 
   saveTestProgress();   // ★ 每次切题都自动存档
@@ -4561,8 +4579,9 @@ function updateExitButton() {
     history.pushState({ quiz: true }, '');
   }
   // ★ 离开 test-mode → 解冻 --app-h，恢复正常全屏
-  if (!inTest && _appHLocked) {
+  if (!inTest) {
     _appHLocked = false;
+    _spellLockOn = false;
     document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
   }
 }
@@ -6850,19 +6869,26 @@ function doQuizBackFromSystem() {
   toast('已保存进度，下次可继续', 'ok');
 }
 
-/* ★ 大方框"锁死"：键盘首次弹出时记录高度，之后物理固定，永不变 */
-let _appHLocked = false;
+/* ★ --app-h：拼写题锁死、其他题实时跟随 */
+let _appHLocked = false;    // 拼写题里键盘弹出后是否已锁死
+let _spellLockOn = false;   // 当前是不是拼写题（决定 --app-h 是否锁）
 function initKeyboardWatcher() {
   const root = document.documentElement;
   const fullH = window.innerHeight;
-  // 初始用全屏高度（键盘还没弹）
   root.style.setProperty('--app-h', fullH + 'px');
 
   const update = () => {
-    if (_appHLocked) return;   // ★ 已锁死 → 不再更新
     const vv = window.visualViewport;
     const h = vv ? vv.height : window.innerHeight;
-    // 键盘弹出：比全屏小 150 以上 → 记录并锁死
+
+    if (!_spellLockOn) {
+      // 非拼写题：跟着键盘实时走
+      root.style.setProperty('--app-h', h + 'px');
+      return;
+    }
+
+    // 拼写题：只在首次键盘弹出时锁死
+    if (_appHLocked) return;
     if (h < fullH - 150) {
       _appHLocked = true;
       root.style.setProperty('--app-h', h + 'px');

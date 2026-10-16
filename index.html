@@ -4090,18 +4090,19 @@ function submitSpell() {
   const ok = val === w.text.toLowerCase();
 
   if (ok) {
-    // 答对：变绿 → 滑出 → 下一题
+    // 答对：变绿 → 播放音频 → 停 1 秒 → 下一题
     inp.classList.add('ok');
     T.answered = true;
     if (T.round === 1) T.firstRoundTotal++;
     T.firstRoundCorrect++;
     gradeWord(w, true);
+    Speech.speak(w.text, { force: true });
     setTimeout(() => {
       T.taskIdx++;
       renderQuestion();
     }, 1000);
   } else {
-    // 答错：不弹详情、不显示底部正确答案，直接覆盖输入框内容 + 定格
+    // 答错：变红 + 显示正确答案 + 定格 + 播放音频
     inp.classList.add('bad');
     inp.value = w.text;
     T.spellPendingRetry = true;
@@ -4109,6 +4110,7 @@ function submitSpell() {
       T.roundErrMap[w.id] = (T.roundErrMap[w.id] || 0) + 1;
     }
     gradeWord(w, false);
+    Speech.speak(w.text, { force: true });
     // 不前进，等用户再按"完成"
   }
 }

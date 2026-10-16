@@ -3573,20 +3573,18 @@ function bindSpellSpeakBtn(word) {
   const btn = $('#btnSpellSpeak');
   if (!btn) return;
   let lastAt = 0;
-  const play = (e) => {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
+  btn.onclick = (e) => {
+    if (e) e.preventDefault();
     const now = Date.now();
     if (now - lastAt < 350) return;
     lastAt = now;
     Speech.speak(word.text, { force: true });
-    // 焦点拉回输入框（键盘不变）
+    // 立即把焦点拉回输入框
     const inp = document.getElementById('spellInput');
     if (inp && document.activeElement !== inp) {
       try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
     }
   };
-  btn.ontouchstart = play;
-  btn.onmousedown = play;
 }
 
 function bindSpellInput(word, stage) {
@@ -4557,6 +4555,11 @@ function updateExitButton() {
   if (inTest && !_atQuiz) {
     _atQuiz = true;
     history.pushState({ quiz: true }, '');
+  }
+  // ★ 离开 test-mode → 解冻 --app-h，恢复正常全屏
+  if (!inTest && _appHLocked) {
+    _appHLocked = false;
+    document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
   }
 }
 
@@ -6843,25 +6846,33 @@ function doQuizBackFromSystem() {
   toast('已保存进度，下次可继续', 'ok');
 }
 
-/* ★ 键盘弹出时，把 --app-h 设成"键盘上方的可见高度" */
+/* ★ 大方框"锁死"：键盘首次弹出时记录高度，之后物理固定，永不变 */
+let _appHLocked = false;
 function initKeyboardWatcher() {
   const root = document.documentElement;
-  let lastH = 0;
+  const fullH = window.innerHeight;
+  // 初始用全屏高度（键盘还没弹）
+  root.style.setProperty('--app-h', fullH + 'px');
+
   const update = () => {
+    if (_appHLocked) return;   // ★ 已锁死 → 不再更新
     const vv = window.visualViewport;
     const h = vv ? vv.height : window.innerHeight;
-    // ★ 只在高度发生"大变化"（键盘弹出/收起，≥150px）时才更新
-    //   忽略点击音频按钮引起的视觉视口微调（几十像素）
-    if (lastH && Math.abs(h - lastH) < 150) return;
-    lastH = h;
-    root.style.setProperty('--app-h', h + 'px');
+    // 键盘弹出：比全屏小 150 以上 → 记录并锁死
+    if (h < fullH - 150) {
+      _appHLocked = true;
+      root.style.setProperty('--app-h', h + 'px');
+    }
   };
+
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', update);
-    window.visualViewport.addEventListener('scroll', update);
   }
-  window.addEventListener('orientationchange', () => setTimeout(update, 200));
-  update();
+  window.addEventListener('orientationchange', () => {
+    _appHLocked = false;
+    root.style.setProperty('--app-h', window.innerHeight + 'px');
+    setTimeout(update, 400);
+  });
 }
 
 function initBackGuard() {
@@ -6899,6 +6910,23 @@ function initBackGuard() {
     history.pushState({ guard: true }, '');
     toast('再按一次返回退出', 'info');
   });
+}
+
+/* ★ 拼写页专用：输入框一失焦，立刻抢回焦点（防止键盘被安卓系统收起） */
+function initSpellFocusGuard() {
+  document.addEventListener('focusout', (e) => {
+    if (!e.target || e.target.id !== 'spellInput') return;
+    // 下一帧检查：如果焦点落到 body，说明是"点音频键"引起的，立即抢回
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body || a === document.documentElement) {
+        const inp = document.getElementById('spellInput');
+        if (inp) {
+          try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+        }
+      }
+    }, 0);
+  }, true);
 }
 
 /* ★ 答题模式下：禁止浏览器把整个页面偷偷滚动 */
@@ -6965,6 +6993,7 @@ async function boot() {
   switchView('create');
   console.log(`[LexiVault Mobile] v${APP_VERSION} 已启动 · 单词 ${S.words.length} · 图片 ${S.images.length}`);
   initKeyboardWatcher();
+  initSpellFocusGuard();
   initNoScrollGuard();
   initBackGuard();
 }

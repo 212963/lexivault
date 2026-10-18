@@ -18,7 +18,8 @@
     var theme = s.theme || 'dark';
     var T = {
       dark:  { bg:'#0a0a12', surface:'#14141f', text:'#eaeaf5' },
-      light: { bg:'#eef0f7', surface:'#ffffff', text:'#16161f' }
+      light: { bg:'#eef0f7', surface:'#ffffff', text:'#16161f' },
+      glass: { bg:'#0b0e18', surface:'#1a2030', text:'#eaf0ff' }
     };
     var t = T[theme] || T.dark;
     function hex2rgb(h){
@@ -1770,10 +1771,12 @@ body.test-mode .word-sheet-panel{
     <!-- 1. 主题 -->
     <div class="set-section">
       <div class="set-title">🎨 主题</div>
-      <div class="theme-switch">
-        <button class="theme-btn" data-theme="dark">🌙 暗色</button>
-        <button class="theme-btn" data-theme="light">☀️ 明亮</button>
-      </div>
+      <button class="set-btn" id="btnOpenTheme">
+        <span class="ico">🎨</span>
+        <span class="body">外观主题
+          <small id="themeStatusShort">暗色</small>
+        </span>
+      </button>
     </div>
 
     <!-- 2. 测试环节 -->
@@ -2369,8 +2372,20 @@ const THEMES = {
     glowBAlpha: 0.05,
     glowCAlpha: 0.04,
   },
+  glass: {
+    bg: '#0b0e18',
+    surface: '#1a2030',
+    surface2: '#222a3e',
+    text: '#eaf0ff',
+    muted: '#95a0ba',
+    border: 'rgba(234,240,255,.12)',
+    shadow: '0 16px 40px -16px rgba(0,0,0,.75)',
+    overlay: 'rgba(5,8,16,.6)',
+    glowAAlpha: 0.32,
+    glowBAlpha: 0.24,
+    glowCAlpha: 0.12,
+  },
 };
-
 const DEFAULT_SETTINGS = {
   accent: '#7c5cff', accent2: '#22d3ee',
   bg: '#0a0a12', surface: '#14141f', text: '#eaeaf5', muted: '#8b8ba7',
@@ -2525,7 +2540,31 @@ function openSubModal(type) {
   const body = $('#subModalBody');
   if (!modal || !title || !body) return;
 
-  if (type === 'overview') {
+  if (type === 'theme') {
+    title.textContent = '🎨 外观主题';
+    const cur = S.settings.theme || 'dark';
+    body.innerHTML = `
+      <div class="sync-hint">选一个你喜欢的外观，立即生效。</div>
+      <div class="stage-switch" style="margin-top:14px">
+        <button class="stage-btn ${cur === 'dark'  ? 'on' : ''}" data-theme-pick="dark">🌙 暗色</button>
+        <button class="stage-btn ${cur === 'light' ? 'on' : ''}" data-theme-pick="light">☀️ 明亮</button>
+        <button class="stage-btn ${cur === 'glass' ? 'on' : ''}" data-theme-pick="glass">🪟 透明玻璃</button>
+      </div>
+    `;
+    $$('[data-theme-pick]', body).forEach(btn => {
+      btn.onclick = () => {
+        const th = btn.dataset.themePick;
+        S.settings.theme = th;
+        saveSettings();
+        applySettings();
+        $$('[data-theme-pick]', body).forEach(b =>
+          b.classList.toggle('on', b.dataset.themePick === th));
+        const shortEl = $('#themeStatusShort');
+        if (shortEl) shortEl.textContent = ({dark:'暗色', light:'明亮', glass:'透明玻璃'})[th] || '暗色';
+        toast(th === 'dark' ? '已切换到暗色' : th === 'light' ? '已切换到明亮' : '已切换到透明玻璃', 'ok');
+      };
+    });
+  } else if (type === 'overview') {
     title.textContent = '📊 概览';
     body.innerHTML = `
       <div class="about-row"><span class="k">应用</span><span class="v">LexiVault 移动版</span></div>
@@ -2697,6 +2736,14 @@ function openSettings() {
   setShort('#apihzStatusShort', !!(S.apiHz.id && S.apiHz.key));
   setShort('#zhipuStatusShort', !!S.zhipu.key);
   setShort('#imgStatusShort', !!S.imgApi.key);
+
+  // 主题入口的副标题：显示当前主题名
+  const themeShortEl = $('#themeStatusShort');
+  if (themeShortEl) {
+    themeShortEl.textContent =
+      ({ dark: '暗色', light: '明亮', glass: '透明玻璃' })[S.settings.theme || 'dark'] || '暗色';
+    themeShortEl.style.color = '';
+  }
 
   $('#settingsModal').hidden = false;
 }
@@ -6954,6 +7001,23 @@ function bindEvents() {
     if (f) await importPack(f);
   });
   $('#setClearData').addEventListener('click', clearAllData);
+
+  // ── 设置里的子菜单入口（之前漏绑了，点了没反应；主题入口是这次新补的）──
+  $('#btnOpenTheme').addEventListener('click', () => openSubModal('theme'));
+  $('#btnOpenStage').addEventListener('click', () => openSubModal('stage'));
+  $('#btnOpenDav').addEventListener('click', () => openSubModal('dav'));
+  $('#btnOpenApihz').addEventListener('click', () => openSubModal('apihz'));
+  $('#btnOpenZhipu').addEventListener('click', () => openSubModal('zhipu'));
+  $('#btnOpenImg').addEventListener('click', () => openSubModal('img'));
+  $('#btnOpenOverview').addEventListener('click', () => openSubModal('overview'));
+
+  // ── 设置里的六个子菜单入口（之前漏绑了，点了没反应）──
+  $('#btnOpenStage').addEventListener('click', () => openSubModal('stage'));
+  $('#btnOpenDav').addEventListener('click', () => openSubModal('dav'));
+  $('#btnOpenApihz').addEventListener('click', () => openSubModal('apihz'));
+  $('#btnOpenZhipu').addEventListener('click', () => openSubModal('zhipu'));
+  $('#btnOpenImg').addEventListener('click', () => openSubModal('img'));
+  $('#btnOpenOverview').addEventListener('click', () => openSubModal('overview'));
   // （旧的 davSave / davTest / davSync 三处绑定已删除。
   //  这三个按钮是「坚果云同步」子弹窗打开时才动态生成的，openSubModal('dav') 里已经自己绑好了；
   //  在这里绑定时页面还没有这些元素，会对 null 调 addEventListener 报错，

@@ -2040,25 +2040,6 @@ function download(content, filename, type = 'application/json') {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/* ── 弹窗返回管理：打开时压一条历史，返回时只关弹窗不退出页面 ── */
-const MODAL_IDS = [
-  'settingsModal', 'subModal', 'statsModal',
-  'smartImageModal', 'wordDetailModal', 'lookupDetailModal',
-  'listModal', 'confirmModal'
-];
-function pushModalHistory(id) {
-  try { history.pushState({ modal: id }, ''); } catch (e) {}
-}
-function closeModalByHistory(id) {
-  const el = document.getElementById(id);
-  if (el) el.hidden = true;
-  // 如果关的是子弹窗，恢复主设置弹窗的可见性
-  if (id === 'subModal') {
-    const sm = document.getElementById('settingsModal');
-    if (sm) sm.hidden = false;
-  }
-}
-
 /* ── 弹窗返回管理：打开时压一条历史，返回时优先关弹窗 ── */
 const MODAL_IDS = [
   'settingsModal', 'subModal', 'statsModal',
@@ -2091,8 +2072,7 @@ function openConfirm(title, msg, onYes, onNo) {
   $('#confirmTitle').textContent = title;
   $('#confirmMsg').textContent = msg;
   modal.hidden = false;
-  pushModalHistory('lookupDetailModal');
-  const _lkMP = $('#lkdMorePhrases');
+  pushModalHistory('confirmModal');
   const close = () => { closeModal('confirmModal'); };
   $('#confirmYes').onclick = () => { close(); onYes && onYes(); };
   $('#confirmNo').onclick = () => { close(); onNo && onNo(); };
@@ -4380,30 +4360,6 @@ function finishQuestion(ok, word) {
       }
       T.taskIdx++;
       renderQuestion();
-      return;
-    }
-
-    // 拼写两步（spell / reverse）：答错才弹学习卡
-    if (stage === 'spell' || stage === 'reverse') {
-      if (ok) T.firstRoundCorrect++;
-      if (T.round === 1) T.firstRoundTotal++;
-      if (!ok) {
-        T.roundWrong.push(word);
-        T.roundErrMap[word.id] = (T.roundErrMap[word.id] || 0) + 1;
-      }
-      gradeWord(word, ok);
-      const fb = $('#quizFb');
-      if (fb && !ok) {
-        fb.className = 'quiz-feedback bad';
-        fb.textContent = `✗ 正确答案：${word.text}`;
-      }
-      if (!ok) {
-        Speech.speak(word.text);
-        setTimeout(() => showLearnCard(word, ok), 700);
-      } else {
-        T.taskIdx++;
-        renderQuestion();
-      }
       return;
     }
 
@@ -6989,16 +6945,8 @@ function bindEvents() {
   });
   $('#setClearData').addEventListener('click', clearAllData);
 
-  // ── 设置里的子菜单入口（之前漏绑了，点了没反应；主题入口是这次新补的）──
+  // ── 设置里的子菜单入口 ──
   $('#btnOpenTheme').addEventListener('click', () => openSubModal('theme'));
-  $('#btnOpenStage').addEventListener('click', () => openSubModal('stage'));
-  $('#btnOpenDav').addEventListener('click', () => openSubModal('dav'));
-  $('#btnOpenApihz').addEventListener('click', () => openSubModal('apihz'));
-  $('#btnOpenZhipu').addEventListener('click', () => openSubModal('zhipu'));
-  $('#btnOpenImg').addEventListener('click', () => openSubModal('img'));
-  $('#btnOpenOverview').addEventListener('click', () => openSubModal('overview'));
-
-  // ── 设置里的六个子菜单入口（之前漏绑了，点了没反应）──
   $('#btnOpenStage').addEventListener('click', () => openSubModal('stage'));
   $('#btnOpenDav').addEventListener('click', () => openSubModal('dav'));
   $('#btnOpenApihz').addEventListener('click', () => openSubModal('apihz'));
@@ -7072,12 +7020,18 @@ function initKeyboardWatcher() {
   });
 }
 
+let _exitingApp = false;   // ★ 用户已确认退出：下一次 popstate 直接放行，不再弹框
+
 function initBackGuard() {
   // 首次进入：压一层守卫
   history.pushState({ guard: true }, '');
 
   window.addEventListener('popstate', e => {
-    const st = e.state || {};
+    // ★ 用户已确认退出 → 放行这次，让浏览器/PWA 自己处理
+    if (_exitingApp) {
+      _exitingApp = false;
+      return;
+    }
 
     // ① 如果当前有打开的弹窗 → 只关最上面那个，不退出页面
     const openModalId = MODAL_IDS.find(id => {
@@ -7104,17 +7058,25 @@ function initBackGuard() {
   const noBtn = document.getElementById('exitAppNo');
   const yesBtn = document.getElementById('exitAppYes');
   const exitModal = document.getElementById('exitAppModal');
-  if (noBtn) noBtn.onclick = () => { exitModal.hidden = true; };
-  if (yesBtn) yesBtn.onclick = () => {
+  if (noBtn) noBtn.onclick = () => {
+    // 点"否"：只关框（守卫层已由 showExitAppConfirm 补好）
     exitModal.hidden = true;
-    // 再执行一次返回：PWA 会退到“应用启动页”，再被系统关闭
+  };
+  if (yesBtn) yesBtn.onclick = () => {
+    // 点"是"：标记 + 让浏览器真正回退一次
+    exitModal.hidden = true;
+    _exitingApp = true;
     history.back();
   };
 }
 
 function showExitAppConfirm() {
   const el = document.getElementById('exitAppModal');
-  if (el) el.hidden = false;
+  if (el) {
+    el.hidden = false;
+    // ★ 重新压一层守卫，保证用户点"否"后再按返回还能弹框
+    history.pushState({ guard: true }, '');
+  }
 }
 
 /* ★ 拼写页专用：输入框一失焦，立刻抢回焦点（防止键盘被安卓系统收起） */
@@ -7190,9 +7152,6 @@ async function boot() {
   renderLibrary();
   renderTestHome();
   renderLookup();
-  syncApiHzUI();
-  syncImgApiUI();
-  syncZhipuUI();
   switchView('create');
   console.log(`[LexiVault Mobile] v${APP_VERSION} 已启动 · 单词 ${S.words.length} · 图片 ${S.images.length}`);
   initKeyboardWatcher();

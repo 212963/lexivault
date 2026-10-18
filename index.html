@@ -1924,6 +1924,19 @@ body.test-mode .word-sheet-panel{
 </div>
 
 <input id="globalImport" type="file" accept=".json,application/json" hidden>
+
+<!-- 退出应用确认框 -->
+<div id="exitAppModal" class="modal" hidden>
+  <div class="modal-box" style="max-width:400px">
+    <h3 style="text-align:center;margin-bottom:6px">退出应用</h3>
+    <p class="muted" style="font-size:13.5px;line-height:1.7;text-align:center;margin-bottom:18px">确定要退出 LexiVault 吗？</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button class="btn" id="exitAppNo">否</button>
+      <button class="btn primary" id="exitAppYes">是</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script>
@@ -2027,6 +2040,50 @@ function download(content, filename, type = 'application/json') {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/* ── 弹窗返回管理：打开时压一条历史，返回时只关弹窗不退出页面 ── */
+const MODAL_IDS = [
+  'settingsModal', 'subModal', 'statsModal',
+  'smartImageModal', 'wordDetailModal', 'lookupDetailModal',
+  'listModal', 'confirmModal'
+];
+function pushModalHistory(id) {
+  try { history.pushState({ modal: id }, ''); } catch (e) {}
+}
+function closeModalByHistory(id) {
+  const el = document.getElementById(id);
+  if (el) el.hidden = true;
+  // 如果关的是子弹窗，恢复主设置弹窗的可见性
+  if (id === 'subModal') {
+    const sm = document.getElementById('settingsModal');
+    if (sm) sm.hidden = false;
+  }
+}
+
+/* ── 弹窗返回管理：打开时压一条历史，返回时优先关弹窗 ── */
+const MODAL_IDS = [
+  'settingsModal', 'subModal', 'statsModal',
+  'smartImageModal', 'wordDetailModal', 'lookupDetailModal',
+  'listModal', 'confirmModal'
+];
+const _modalHistoryPushed = {};
+function pushModalHistory(id) {
+  if (_modalHistoryPushed[id]) return;
+  _modalHistoryPushed[id] = true;
+  try { history.pushState({ modal: id }, ''); } catch (e) {}
+}
+function clearModalHistory(id) {
+  delete _modalHistoryPushed[id];
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.hidden = true;
+  clearModalHistory(id);
+  if (id === 'subModal') {
+    const sm = document.getElementById('settingsModal');
+    if (sm) sm.hidden = false;
+  }
+}
+
 /* 通用确认弹窗：标题 / 消息 / 点"是"回调 / 点"否"回调 */
 function openConfirm(title, msg, onYes, onNo) {
   const modal = $('#confirmModal');
@@ -2034,6 +2091,8 @@ function openConfirm(title, msg, onYes, onNo) {
   $('#confirmTitle').textContent = title;
   $('#confirmMsg').textContent = msg;
   modal.hidden = false;
+  pushModalHistory('lookupDetailModal');
+  const _lkMP = $('#lkdMorePhrases');
   const close = () => { modal.hidden = true; };
   $('#confirmYes').onclick = () => { close(); onYes && onYes(); };
   $('#confirmNo').onclick = () => { close(); onNo && onNo(); };
@@ -2732,11 +2791,13 @@ function openSubModal(type) {
   }
 
   modal.hidden = false;
+  pushModalHistory('subModal');
 }
 
 function openSettings() {
   refreshThemeButtons();
   $('#subModal').hidden = true;   // ★ 打开主设置前，先关掉可能残留的子弹窗
+  clearModalHistory('subModal');  // ★ 顺带清掉子弹窗的历史标志，避免下次打开子弹窗不压历史
 
   const setShort = (id, isOk) => {
     const el = $(id);
@@ -2758,6 +2819,7 @@ function openSettings() {
   }
 
   $('#settingsModal').hidden = false;
+  pushModalHistory('settingsModal');
 }
 
 function closeSettings() {
@@ -2770,6 +2832,7 @@ function openStats() {
   if (!body) return;
   body.innerHTML = renderStatsHTML();
   $('#statsModal').hidden = false;
+  pushModalHistory('statsModal');
 }
 
 function renderStatsHTML() {
@@ -3310,6 +3373,7 @@ async function showWordGlance(raw) {
     $('#lookupDetailBody').innerHTML =
       `<div class="lookup-tip"><div class="big">⏳</div>正在查询「${esc(original)}」…</div>`;
     modal.hidden = false;
+    pushModalHistory('lookupDetailModal');
   }
 
   // 2. 离线词典
@@ -3347,6 +3411,7 @@ async function showWordGlance(raw) {
       </div>
       <button class="btn block lg" id="glanceCloseBtn" style="margin-top:10px">关闭</button>`;
     modal.hidden = false;
+    pushModalHistory('lookupDetailModal');
     const btn = $('#glanceCloseBtn');
     if (btn) btn.onclick = () => { modal.hidden = true; };
   }
@@ -3453,7 +3518,9 @@ function openListModal(title, items, type) {
     ).join('');
   }
   modal.hidden = false;
+  pushModalHistory('listModal');
 }
+
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -5299,6 +5366,7 @@ function openDictDetail(entry) {
     </div>`;
 
   modal.hidden = false;
+  pushModalHistory('lookupDetailModal');
   const mp = $('#ddMorePhrases');
   if (mp) mp.onclick = () => openListModal('全部词组', phrases, 'phrases');
   $('#ddSpeak').onclick = () => Speech.speak(entry.word);
@@ -5547,6 +5615,7 @@ function openSmartImagePicker(word, onPicked) {
   const tip = $('#smartImageTip');
   if (!modal || !grid || !tip) return;
   modal.hidden = false;
+  pushModalHistory('smartImageModal');
   grid.innerHTML = '<div class="smart-empty">正在搜索图片…</div>';
   tip.textContent = `正在搜索「${word}」的相关图片…`;
 
@@ -5756,6 +5825,7 @@ function openLibraryDetail(w) {
     <button class="btn block" id="wdClose" style="margin-top:10px">关闭</button>`;
 
   modal.hidden = false;
+  pushModalHistory('wordDetailModal');
   const _wdMP = $('#wdMorePhrases');
   if (_wdMP) _wdMP.onclick = () => openListModal('全部词组', phrases, 'phrases');
   const _wdMS = $('#wdMoreSentences');
@@ -6948,7 +7018,6 @@ function bindEvents() {
    §7.5  手机返回键 / 侧滑拦截
    ══════════════════════════════════════════════ */
 let _atQuiz = false;          // 当前 history 栈顶是不是我们压的「答题层」
-let _baseBackAt = 0;          // 上次在主界面按返回的时间戳
 
 /* 系统返回键触发的"退回上一级"——和左上角「←」做一样的事 */
 function doQuizBackFromSystem() {
@@ -7004,40 +7073,48 @@ function initKeyboardWatcher() {
 }
 
 function initBackGuard() {
-
-  // 压一层守卫：用户按返回时，浏览器会退到"真实上一页"，
-  // 我们在 popstate 里把它拦回来
+  // 首次进入：压一层守卫
   history.pushState({ guard: true }, '');
 
   window.addEventListener('popstate', e => {
     const st = e.state || {};
 
-    // ① 从答题界面返回：保存进度 + 回到测试首页
-    if (st.guard && _atQuiz) {
+    // ① 如果当前有打开的弹窗 → 只关最上面那个，不退出页面
+    const openModalId = MODAL_IDS.find(id => {
+      const el = document.getElementById(id);
+      return el && !el.hidden;
+    });
+    if (openModalId) {
+      closeModal(openModalId);
+      return;
+    }
+
+    // ② 答题中 → 保存进度，回测试首页
+    if (_atQuiz) {
       _atQuiz = false;
       doQuizBackFromSystem();
       return;
     }
 
-    // ② 落在守卫层，正常（例如用户往前点）
-    if (st.guard) return;
-
-    // ③ 落在「真实页」→ 用户在主界面按了返回
-    const now = Date.now();
-
-    // 距上次不超过 3 秒 → 算"第二次" → 允许退出
-    if (_baseBackAt && now - _baseBackAt < 3000) {
-      _baseBackAt = 0;
-      // 用户此时还停在"真实页"上，再退一格才能真正退出到桌面
-      setTimeout(() => history.back(), 10);
-      return;
-    }
-
-    // 第一次（或距上次超过 3 秒）→ 弹提示，压回守卫层
-    _baseBackAt = now;
-    history.pushState({ guard: true }, '');
-    toast('再按一次返回退出', 'info');
+    // ③ 主界面 → 弹“退出应用”确认框
+    showExitAppConfirm();
   });
+
+  // “退出应用”确认框按钮
+  const noBtn = document.getElementById('exitAppNo');
+  const yesBtn = document.getElementById('exitAppYes');
+  const exitModal = document.getElementById('exitAppModal');
+  if (noBtn) noBtn.onclick = () => { exitModal.hidden = true; };
+  if (yesBtn) yesBtn.onclick = () => {
+    exitModal.hidden = true;
+    // 再执行一次返回：PWA 会退到“应用启动页”，再被系统关闭
+    history.back();
+  };
+}
+
+function showExitAppConfirm() {
+  const el = document.getElementById('exitAppModal');
+  if (el) el.hidden = false;
 }
 
 /* ★ 拼写页专用：输入框一失焦，立刻抢回焦点（防止键盘被安卓系统收起） */

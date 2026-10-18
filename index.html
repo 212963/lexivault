@@ -1370,6 +1370,10 @@ body.test-mode .word-sheet-panel{
   background:rgba(var(--surface-rgb),.78);border:1px solid var(--border);
   cursor:pointer;transition:all .2s var(--ease);
   animation:fadeUp .3s var(--ease) backwards;
+  /* ★ 只渲染屏幕内的词条，屏幕外的先跳过，滑到哪渲染到哪。
+     100px 是每个词条的估算高度，用来占位，避免滚动时跳动。 */
+  content-visibility:auto;
+  contain-intrinsic-size:0 100px;
 }
 .word-item:active{transform:scale(.98);border-color:rgba(var(--accent-rgb),.5)}
 .wi-img{
@@ -1578,10 +1582,9 @@ body.test-mode .word-sheet-panel{
               style="margin-bottom:8px;font-size:13.5px;min-height:42px;border-style:dashed">
         AI图片生例句
       </button>
-      <textarea class="input" id="cwSentence" rows="3"
-                placeholder="英文句子&#10;中文翻译（智谱生成后可手动修改）"
+      <textarea class="input" id="cwSentence" rows="2"
                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                style="resize:vertical;min-height:72px;font-family:inherit;line-height:1.5"></textarea>
+                style="resize:vertical;height:76px;min-height:76px;font-family:inherit;line-height:1.5"></textarea>
     </div>
 
     <div class="card">
@@ -3490,12 +3493,14 @@ function applyRingSeg(sel, len, start, delayMs) {
   el.style.transition = 'none';
   el.style.strokeDasharray = `0 ${RING_CIRC}`;
   el.style.strokeDashoffset = String(-start);
-  // 强制回流，然后再恢复 transition
-  void el.getBoundingClientRect();
-  el.style.transition = '';
-  el.style.transitionDelay = delayMs + 'ms';
+  // ★ 用两帧 requestAnimationFrame 代替强制回流，
+  //   避免同步布局阻塞主线程；圆环动画效果不变，只是慢一两帧。
   requestAnimationFrame(() => {
-    el.style.strokeDasharray = `${len} ${RING_CIRC}`;
+    el.style.transition = '';
+    el.style.transitionDelay = delayMs + 'ms';
+    requestAnimationFrame(() => {
+      el.style.strokeDasharray = `${len} ${RING_CIRC}`;
+    });
   });
 }
 
@@ -4151,6 +4156,11 @@ function ensureQuizTopbar(opts) {
 
   bar.querySelector('#btnQuizBack').onclick = () => {
     if (_atQuiz) {
+      // ★ 先标记"已离开答题"，再同步渲染测试首页（点了立刻有反应），
+      //   最后才让浏览器异步回退历史；回退触发的 popstate 看到 _atQuiz=false 会直接忽略，
+      //   不会重复渲染、不会回退过头落到新建页。
+      _atQuiz = false;
+      doQuizBackFromSystem();
       history.back();
     } else {
       doQuizBackFromSystem();

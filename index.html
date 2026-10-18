@@ -2680,7 +2680,8 @@ function openSubModal(type) {
 
 function openSettings() {
   refreshThemeButtons();
-  
+  $('#subModal').hidden = true;   // ★ 打开主设置前，先关掉可能残留的子弹窗
+
   const setShort = (id, isOk) => {
     const el = $(id);
     if (!el) return;
@@ -3638,6 +3639,7 @@ function startReview() {
   T.taskIdx = 0;
   T.round = 1;
   T.roundWrong = [];
+  T.roundErrMap = {};   // ★ 重置首轮答错记录，避免上一次学习残值影响本次
   T.firstRoundTotal = T.tasks.length;
   T.firstRoundCorrect = 0;
   T.answered = false;
@@ -3715,6 +3717,13 @@ function renderSpellOrReverse_task(t) {
   const card = document.querySelector('#testRun .spell-card');
   const inp  = document.getElementById('spellInput');
   const canReuse = card && inp && card.dataset.stage === stage;
+
+  // ★ spell ↔ reverse 切换时，DOM 会重建、键盘可能短暂收起，
+  //   把「已锁死」状态放开，让 --app-h 等新输入框的键盘弹出后重新锁，
+  //   避免 --app-h 还停在上一题（spell）时的高度。
+  if (!canReuse && _appHLocked) {
+    _appHLocked = false;
+  }
 
   if (canReuse) {
     // ── 增量更新：DOM 不重建，input 不销毁 → 键盘纹丝不动 ──
@@ -4018,8 +4027,7 @@ function renderQuestion() {
     $('#btnNotKnow').onclick = () => { if (!T.answered) finishQuestion(false, w); };
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
 
-  } else if (stage === 'review-choice') {
-      } else if (stage === 'spell') {
+  } else if (stage === 'spell') {
     const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
     $('#testRun').innerHTML = `
       <div class="quiz-card slide-in" style="padding:14px">
@@ -4182,12 +4190,20 @@ function submitSpell() {
   if (!val) return;
   const ok = val === w.text.toLowerCase();
 
+  // ★ 首轮首次作答才计入正确率：
+  //   - 学习模式：首轮每道拼写题都算一题（不管首答对错）
+  //   - 复习模式：total 已在 startReviewSpell 里定好，这里只补 correct
+  //   - 重试作答（round > 1，或这道题之前已经答错过）一律不再计数
+  const isFirstAttempt = T.round === 1 && !(T.roundErrMap[w.id] > 0);
+
   if (ok) {
     // 答对：变绿 → 播放音频 → 停 1 秒 → 下一题
     inp.classList.add('ok');
     T.answered = true;
-    if (T.round === 1) T.firstRoundTotal++;
-    T.firstRoundCorrect++;
+    if (isFirstAttempt) {
+      if (T.mode === 'learn') T.firstRoundTotal++;
+      T.firstRoundCorrect++;
+    }
     gradeWord(w, true);
     Speech.speak(w.text, { force: true });
     setTimeout(() => {
@@ -4199,6 +4215,9 @@ function submitSpell() {
     inp.classList.add('bad');
     inp.value = w.text;
     T.spellPendingRetry = true;
+    if (isFirstAttempt && T.mode === 'learn') {
+      T.firstRoundTotal++;   // 学习模式：首答错也算一题
+    }
     if (T.round === 1) {
       T.roundErrMap[w.id] = (T.roundErrMap[w.id] || 0) + 1;
     }
@@ -4934,6 +4953,7 @@ function startReviewSpell(mode) {
   T.taskIdx = 0;
   T.round = 1;
   T.roundWrong = [];
+  T.roundErrMap = {};   // ★ 重置首轮答错记录，避免上一次复习残值影响本次拼写统计
   T.firstRoundTotal = T.tasks.length;
   T.firstRoundCorrect = 0;
   T.answered = false;
@@ -6909,39 +6929,10 @@ function bindEvents() {
     if (f) await importPack(f);
   });
   $('#setClearData').addEventListener('click', clearAllData);
-  // ── 云同步 ──
-  $('#davSave').addEventListener('click', () => {
-    const url  = ($('#davUrl').value  || '').trim();
-    const user = ($('#davUser').value || '').trim();
-    const pass = ($('#davPass').value || '').trim();
-    if (!url || !user || !pass) return toast('三项都要填', 'warn');
-    S.settings.webdav = { url, user, pass };
-    saveSettings();
-    setSyncStatus('✅ 配置已保存', 'ok');
-    toast('配置已保存', 'ok');
-  });
-
-  $('#davTest').addEventListener('click', async () => {
-    const url  = ($('#davUrl').value  || '').trim();
-    const user = ($('#davUser').value || '').trim();
-    const pass = ($('#davPass').value || '').trim();
-    if (!url || !user || !pass) return toast('三项都要填', 'warn');
-    // 先临时设置，让 WebDAV 用新值
-    const backup = S.settings.webdav;
-    S.settings.webdav = { url, user, pass };
-    setSyncStatus('⏳ 正在测试…');
-    try {
-      await WebDAV.testConnection();
-      setSyncStatus('✅ 连接成功，账号密码可用', 'ok');
-      toast('连接成功', 'ok');
-      // 保留配置，用户可能直接想用
-    } catch (e) {
-      S.settings.webdav = backup;   // 失败就还原
-      setSyncStatus('❌ ' + esc(e.message || String(e)), 'err');
-    }
-  });
-
-  $('#davSync').addEventListener('click', syncNow);
+  // （旧的 davSave / davTest / davSync 三处绑定已删除。
+  //  这三个按钮是「坚果云同步」子弹窗打开时才动态生成的，openSubModal('dav') 里已经自己绑好了；
+  //  在这里绑定时页面还没有这些元素，会对 null 调 addEventListener 报错，
+  //  导致 bindEvents 从这里中断，后面的数据加载、界面渲染全都跑不到。）
 }
 
 /* ══════════════════════════════════════════════

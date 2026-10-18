@@ -2752,14 +2752,6 @@ function closeSettings() {
   $('#settingsModal').hidden = true;
 }
 
-/* ── 测试环节开关按钮 ── */
-function refreshStageButtons() {
-  const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
-  document.querySelectorAll('.stage-btn').forEach(btn => {
-    btn.classList.toggle('on', !!st[btn.dataset.stage]);
-  });
-}
-
 /* ── 数据统计面板 ── */
 function openStats() {
   const body = $('#statsBody');
@@ -3040,12 +3032,6 @@ function retentionOf(word, at = nowMs()) {
   const days = (at - word.srs.lastReview) / DAY;
   const st = Math.max(0.1, word.srs.strength || S.settings.srsInit);
   return Math.exp(-days / st);
-}
-function retColor(r) {
-  if (r === null) return '#8b8ba7';
-  if (r >= 0.8) return '#3ddc97';
-  if (r >= 0.6) return '#ffb43c';
-  return '#ff6b81';
 }
 /* 学习进度：0 ~ 1。
    - 4 个环节全做完才结算，进度 = 1 − 首轮答错次数 × 0.25
@@ -4099,67 +4085,6 @@ function renderQuestion() {
     $('#btnNotKnow').onclick = () => { if (!T.answered) finishQuestion(false, w); };
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
 
-  } else if (stage === 'spell') {
-    const capText = meaningsToString(getMeanings(w).filter(m => !isPhraseMeaning(m)));
-    $('#testRun').innerHTML = `
-      <div class="quiz-card slide-in" style="padding:14px">
-        <div class="spell-img-wrap">
-          <img src="${url}" alt="">
-          ${capText ? `<div class="spell-img-cap">${esc(capText)}</div>` : ''}
-        </div>
-        <input class="spell-input-bare" id="spellInput" style="margin-top:16px"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-               inputmode="text" enterkeyhint="done">
-        <div style="text-align:center;margin-top:12px">
-          <button type="button" id="btnSpellHint"
-                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示音标</button>
-        </div>
-        <div id="spellHintWrap"></div>
-        <div class="quiz-feedback" id="quizFb"></div>
-      </div>`;
-    bindSpellInput(w, 'spell');
-    $('#btnSpellHint').onclick = () => {
-      const wrap = $('#spellHintWrap');
-      if (!wrap) return;
-      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
-      wrap.innerHTML = w.phonetic
-        ? `<div class="lc-phonetic" style="text-align:center;margin-top:4px">${esc(w.phonetic)}</div>`
-        : '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:4px">这个词没有音标</div>';
-    };
-    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
-
-  } else if (stage === 'reverse') {
-    const plainMeanings = getMeanings(w).filter(m => !isPhraseMeaning(m));
-    const meaning = plainMeanings.map(m =>
-      (m.pos ? `<i class="rev-pos">${esc(m.pos)}</i>` : '') + esc(m.text)
-    ).join('；');
-    $('#testRun').innerHTML = `
-      <div class="quiz-card slide-in" style="padding:26px 20px 20px">
-        <input class="spell-input-bare" id="spellInput"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-               inputmode="text" enterkeyhint="done">
-        <div class="spell-rev-zh">${meaning || '（无释义）'}</div>
-        <div style="text-align:center;margin-top:14px">
-          <button type="button" id="btnRevHint"
-                  style="border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px">💡 提示例句</button>
-        </div>
-        <div id="revHintWrap"></div>
-        <div class="quiz-feedback" id="quizFb"></div>
-      </div>`;
-    bindSpellInput(w, 'reverse');
-    $('#btnRevHint').onclick = () => {
-      const wrap = $('#revHintWrap');
-      if (!wrap) return;
-      if (wrap.innerHTML) { wrap.innerHTML = ''; return; }
-      const sents = splitWordSentences(w);
-      if (!sents.length) {
-        wrap.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;margin-top:10px">这个词没有例句</div>';
-        return;
-      }
-      const { en } = splitSentenceLine(sents[0]);
-      wrap.innerHTML = `<div class="example-sentence" style="text-align:center;margin-top:10px">${highlightWordInText(en, w.text)}</div>`;
-    };
-
   } else if (stage === 'review-choice') {
     // 复习：看单词 + 图片 → 选 4 个中文意思之一
     const opts = buildReviewOptions(w);
@@ -4293,6 +4218,10 @@ function submitSpell() {
     if (T.round === 1) {
       T.roundErrMap[w.id] = (T.roundErrMap[w.id] || 0) + 1;
     }
+    // ★ 把这个词记进「本轮错词」，批结束后会拉出来重测到全对
+    if (!T.roundWrong.some(x => x.id === w.id)) {
+      T.roundWrong.push(w);
+    }
     gradeWord(w, false);
     Speech.speak(w.text, { force: true });
     // 不前进，等用户再按"完成"
@@ -4320,13 +4249,8 @@ function finishQuestion(ok, word) {
         fb.textContent = `✗ 正确答案：${word.text}`;
       }
     }
-    if (stage === 'reverse' && !ok) {
-      Speech.speak(word.text);
-      setTimeout(() => showLearnCard(word, ok), 700);
-    } else {
-      T.taskIdx++;
-      renderQuestion();
-    }
+    T.taskIdx++;
+    renderQuestion();
     return;
   }
 
@@ -4417,36 +4341,6 @@ function finishQuestion(ok, word) {
     }
     Speech.speak(word.text);
     setTimeout(() => showLearnCard(word, ok), 700);
-    return;
-  }
-
-  // ── 学习模式的「拼写阶段」── 这里才算进度
-  if (T.mode === 'learn' && T.phase === 'spell') {
-    if (ok) T.firstRoundCorrect++;
-    if (T.round === 1) T.firstRoundTotal++;
-    if (!ok) {
-      T.roundWrong.push(word);
-      T.roundErrMap[word.id] = (T.roundErrMap[word.id] || 0) + 1;
-    }
-    gradeWord(word, ok);
-    const fb = $('#quizFb');
-    if (fb && !ok) {
-      fb.className = 'quiz-feedback bad';
-      fb.textContent = `✗ 正确答案：${word.text}`;
-    }
-    if (!ok) {
-      Speech.speak(word.text);
-      setTimeout(() => showLearnCard(word, ok), 700);
-    } else {
-      const card = $('.quiz-card');
-      if (card) {
-        card.classList.add('slide-out');
-        setTimeout(() => { T.taskIdx++; renderQuestion(); }, 260);
-      } else {
-        T.taskIdx++;
-        renderQuestion();
-      }
-    }
     return;
   }
 }
@@ -4767,6 +4661,7 @@ function updateExitButton() {
   }
   // ★ 离开 test-mode → 解冻 --app-h，恢复正常全屏
   if (!inTest) {
+    _atQuiz = false;   // ★ 退出答题后重置，避免返回键误判为"还在答题"
     _appHLocked = false;
     _spellLockOn = false;
     document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
@@ -4783,15 +4678,6 @@ function buildBatchTasks(batchIdx) {
       tasks.push({ word, stage });
     }
   }
-  return tasks;
-}
-
-/* 按批次号重建该批次的拼写任务队列（看图拼词 → 看中文拼英文） */
-function buildSpellTasks(batchIdx) {
-  const batch = T.batches[batchIdx] || [];
-  const tasks = [];
-  for (const word of batch) tasks.push({ word, stage: 'spell' });
-  for (const word of batch) tasks.push({ word, stage: 'reverse' });
   return tasks;
 }
 
@@ -4893,46 +4779,6 @@ function showBatchBreak(batchNo, totalBatches) {
   document.addEventListener('keydown', _learnEnterHandler);
   $('#batchNextBtn').onclick = go;
   setTimeout(() => { $('#batchNextBtn').focus(); }, 60);
-}
-
-/* 学习阶段结束 → 进入拼写阶段的过渡页 */
-function showSpellBreak() {
-  saveTestProgress();
-  const batch = T.batches[T.batchIdx] || [];
-  $('#testRun').innerHTML = `
-    <div class="quiz-progress">学习完成</div>
-    <div class="learn-card ok">
-      <div class="lc-badge">✏️ 开始拼写</div>
-      <div style="text-align:center;padding:16px 0 6px">
-        <div style="font-size:48px;font-weight:800;line-height:1;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent">${batch.length}</div>
-        <div style="color:var(--muted);font-size:14px;margin-top:10px">个单词要拼写</div>
-      </div>
-      <div style="font-size:13.5px;color:var(--muted);line-height:1.7;text-align:center;padding:0 8px">
-        先看图拼词，再看中文拼英文<br>全部拼对 = 进度 100%，每错一次 -25%
-      </div>
-      <button class="btn primary block lg" id="spellStartBtn" style="margin-top:14px">开始拼写</button>
-    </div>`;
-
-  if (_learnEnterHandler) {
-    document.removeEventListener('keydown', _learnEnterHandler);
-    _learnEnterHandler = null;
-  }
-  let consumed = false;
-  const go = () => {
-    if (consumed) return;
-    consumed = true;
-    if (_learnEnterHandler) {
-      document.removeEventListener('keydown', _learnEnterHandler);
-      _learnEnterHandler = null;
-    }
-    renderQuestion();
-  };
-  _learnEnterHandler = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); go(); }
-  };
-  document.addEventListener('keydown', _learnEnterHandler);
-  $('#spellStartBtn').onclick = go;
-  setTimeout(() => { $('#spellStartBtn').focus(); }, 60);
 }
 
 function showRoundBreak(count) {
@@ -5047,6 +4893,7 @@ function showResult() {
   S.savedTestProgress = null;    // ★ 同时清内存副本，否则测试首页还会显示「继续上次进度」
   $('#testRun').hidden = true;
   $('#testResult').hidden = false;
+  updateExitButton();   // ★ 结果页不是答题页：恢复底部栏、重置返回键状态
   // 学习模式下，"重来"回到测试首页而不是重跑
   const isLearn = T.mode === 'learn';
   const total = T.firstRoundTotal;
@@ -5548,24 +5395,6 @@ function fillWordInfo(info) {
   // 3) 例句：不再从公共词典填，只走智谱（跟图片绑定）
 }
 
-function syncApiHzUI() {
-  const idEl = $('#apiHzId');
-  const keyEl = $('#apiHzKey');
-  const statusEl = $('#apiHzStatus');
-  if (!idEl || !keyEl || !statusEl) return;
-  const id = S.apiHz.id;
-  const key = S.apiHz.key;
-  idEl.value = id;
-  keyEl.value = key;
-  if (id && key) {
-    statusEl.className = 'sync-status ok';
-    statusEl.textContent = '✅ 已配置';
-  } else {
-    statusEl.className = 'sync-status';
-    statusEl.textContent = '未配置';
-  }
-}
-
 async function testApiHz() {
   const statusEl = $('#apiHzStatus');
   const setStatus = (text, type) => {
@@ -5592,46 +5421,6 @@ async function testApiHz() {
 /* ══════════════════════════════════════════════
    §6.74  智能配图（Pixabay / LoremFlickr）
    ══════════════════════════════════════════════ */
-function syncImgApiUI() {
-  const providerEl = $('#imgApiProvider');
-  const keyEl = $('#imgApiKey');
-  const statusEl = $('#imgApiStatus');
-  if (!providerEl || !keyEl || !statusEl) return;
-  providerEl.value = S.imgApi.provider;
-  keyEl.value = S.imgApi.key;
-  if (S.imgApi.provider === 'loremflickr') {
-    keyEl.disabled = true;
-    keyEl.placeholder = '免注册 API 无需填写';
-    statusEl.className = 'sync-status ok';
-    statusEl.textContent = '✅ 使用 LoremFlickr（免注册）';
-  } else {
-    keyEl.disabled = false;
-    keyEl.placeholder = '粘贴 Pixabay API Key';
-    if (S.imgApi.key) {
-      statusEl.className = 'sync-status ok';
-      statusEl.textContent = '✅ 已配置 Pixabay';
-    } else {
-      statusEl.className = 'sync-status';
-      statusEl.textContent = '未配置 API Key';
-    }
-  }
-}
-
-function syncZhipuUI() {
-  const keyEl = $('#zhipuKey');
-  const statusEl = $('#zhipuStatus');
-  if (!keyEl || !statusEl) return;
-  const key = S.zhipu.key;
-  keyEl.value = key;
-  if (key) {
-    statusEl.className = 'sync-status ok';
-    statusEl.textContent = '✅ 已配置 · 模型 glm-4v-flash';
-  } else {
-    statusEl.className = 'sync-status';
-    statusEl.textContent = '未配置';
-  }
-}
-
 let _pixabayPage = 1;
 function openSmartImagePicker(word, onPicked) {
   if (!word) return toast('请输入英文单词', 'warn');
@@ -6192,15 +5981,31 @@ function mergeSrs(a, b) {
   if (!b) return a;
   const at = a.lastReview || 0;
   const bt = b.lastReview || 0;
-  if (bt > at) return b;
-  if (at > bt) return a;
-  return {
-    strength: Math.max(a.strength || 0, b.strength || 0),
-    lastReview: at,
-    reviews: [...(a.reviews || []), ...(b.reviews || [])]
-      .sort((x, y) => x.t - y.t)
-      .slice(-60),
-  };
+
+  // learnProgress 不论哪边 lastReview 新，都取较大的那个，
+  // 防止「云端学完的进度，被另一台设备的旧进度覆盖」。
+  const ap = (a.learnProgress === undefined) ? null : a.learnProgress;
+  const bp = (b.learnProgress === undefined) ? null : b.learnProgress;
+  const maxProgress = (ap === null) ? bp
+                    : (bp === null) ? ap
+                    : Math.max(ap, bp);
+
+  let merged;
+  if (bt > at) merged = { ...b };
+  else if (at > bt) merged = { ...a };
+  else {
+    merged = {
+      strength: Math.max(a.strength || 0, b.strength || 0),
+      lastReview: at,
+      reviews: [...(a.reviews || []), ...(b.reviews || [])]
+        .sort((x, y) => x.t - y.t)
+        .slice(-60),
+    };
+  }
+  if (maxProgress !== null && maxProgress !== undefined) {
+    merged.learnProgress = maxProgress;
+  }
+  return merged;
 }
 function mergeWord(local, remote) {
   // 冲突判定：谁的 updatedAt 新，谁赢基础字段；SRS 单独合并
@@ -6878,20 +6683,6 @@ function bindEvents() {
     });
   });
 
-  // ── 测试环节开关 ──
-  document.querySelectorAll('.stage-btn').forEach(btn => {
-    btn.onclick = () => {
-      const key = btn.dataset.stage;
-      const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
-      st[key] = !st[key];
-      S.settings.testStages = st;
-      saveSettings();
-      refreshStageButtons();
-      renderTestHome();
-      toast(st[key] ? '已开启' : '已关闭', 'ok');
-    };
-  });
-
   // ── 弹窗：点击背景关闭 ──
   document.addEventListener('click', e => {
     if (e.target.classList && e.target.classList.contains('modal') && !e.target.hidden) {
@@ -7032,7 +6823,6 @@ function bindEvents() {
    ══════════════════════════════════════════════ */
 let _atQuiz = false;          // 当前 history 栈顶是不是我们压的「答题层」
 let _baseBackAt = 0;          // 上次在主界面按返回的时间戳
-let _baseBackTimer = null;    // 3 秒刷新计时器、
 
 /* 系统返回键触发的"退回上一级"——和左上角「←」做一样的事 */
 function doQuizBackFromSystem() {
@@ -7157,9 +6947,6 @@ async function boot() {
   renderLibrary();
   renderTestHome();
   renderLookup();
-  syncApiHzUI();
-  syncImgApiUI();
-  syncZhipuUI();
   switchView('create');
 
   try {

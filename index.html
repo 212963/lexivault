@@ -3080,15 +3080,27 @@ const T = {
   roundErrMap: {},      // ★ 本轮每个词的答错次数：{ [wordId]: errCount }
   batchSettled: false,  // ★ 本批次是否已经结算过进度
   spellPendingRetry: false,  // ★ 拼写答错、已显示正确答案，等用户按"完成"重做
+  reviewCorrectStages: {},   // ★ 本次复习中，每个词已经答对过的题型 { [wordId]: Set(['choice','choice-zh']) }
 };
 
 let _learnEnterHandler = null;
 
+function memoryRateOf(word) {
+  const r = retentionOf(word);
+  return r === null ? 0 : r;
+}
+
 function retentionOf(word, at = nowMs()) {
-  if (!word.srs || !word.srs.lastReview) return null;
+  if (!word.srs) return null;
+  // 初始记忆率：新字段 baseRetention，老数据兼容 learnProgress
+  const base = (word.srs.baseRetention !== undefined)
+    ? word.srs.baseRetention
+    : (word.srs.learnProgress || 0);
+  if (!base || base <= 0) return null;              // 没学过
+  if (!word.srs.lastReview) return base;            // 刚学完还没开始衰减
   const days = (at - word.srs.lastReview) / DAY;
   const st = Math.max(0.1, word.srs.strength || S.settings.srsInit);
-  return Math.exp(-days / st);
+  return Math.min(1, base * Math.exp(-days / st));
 }
 /* 学习进度：0 ~ 1。
    - 4 个环节全做完才结算，进度 = 1 − 首轮答错次数 × 0.25
@@ -3106,14 +3118,29 @@ function progColor(p) {
   if (p > 0)  return '#ffb43c';
   return '#8b8ba7';
 }
-function gradeWord(word, ok) {
+function gradeWord(word, ok, opts = {}) {
   if (!word.srs) word.srs = { strength: S.settings.srsInit, lastReview: null, reviews: [] };
-  if (ok) word.srs.strength = Math.min(word.srs.strength * S.settings.srsGain + 0.4, 365);
-  else word.srs.strength = Math.max(0.2, word.srs.strength * S.settings.srsDecay);
-  word.srs.lastReview = nowMs();
+
+  if (opts.review) {
+    // ── 复习模式：按题型独立 +25%，答错不动 ──
+    if (ok && opts.addProgress !== false) {
+      const base = word.srs.baseRetention !== undefined
+        ? word.srs.baseRetention
+        : (word.srs.learnProgress || 0);
+      word.srs.baseRetention = Math.min(1, base + 0.25);
+      word.srs.learnProgress = word.srs.baseRetention;
+      word.srs.lastReview = nowMs();
+    }
+    // 答对但该题型本次已加过 / 答错：什么都不动
+  } else {
+    if (ok) word.srs.strength = Math.min(word.srs.strength * S.settings.srsGain + 0.4, 365);
+    else word.srs.strength = Math.max(0.2, word.srs.strength * S.settings.srsDecay);
+    word.srs.lastReview = nowMs();
+  }
+
   word.srs.reviews.push({ t: nowMs(), ok });
   if (word.srs.reviews.length > 60) word.srs.reviews.shift();
-  word.updatedAt = nowMs();   // ★ 同步用
+  word.updatedAt = nowMs();
   DB.put('words', word);
 }
 function getMeanings(word) {
@@ -3516,12 +3543,12 @@ const RING_CIRC = 2 * Math.PI * 78;   // ≈ 490.09
 function renderRing() {
   const total = S.words.length;
 
-  // 分类统计
+  // 分类统计（按「记忆保留率」分：没学过 / 学过但衰减到 80% 以下 / 学过且还稳）
   let learned = 0, review = 0, fresh = 0;
   for (const w of S.words) {
-    const p = learningProgressOf(w);
-    if (p <= 0) fresh++;
-    else if (p >= 0.8) learned++;
+    if (learningProgressOf(w) <= 0) { fresh++; continue; }
+    const r = memoryRateOf(w);
+    if (r >= 0.8) learned++;
     else review++;
   }
 
@@ -3564,14 +3591,14 @@ function applyRingSeg(sel, len, start, delayMs) {
 
 /* ── 测试首页：统计未学习 / 待复习 ── */
 function renderTestHome() {
-  // 未学习：有图 + 学习进度 < 100%
+  // 未学习：有图 + 从没学过
   const unlearned = S.words.filter(w =>
     w.imageIds && w.imageIds.length &&
-    learningProgressOf(w) < 1);
-  // 待复习：有图 + 学完（进度 100%）+ 记忆衰减到 < 80%
+    learningProgressOf(w) <= 0);
+  // 待复习：有图 + 学过 + 记忆保留率 < 80%
   const due = S.words.filter(w => {
     if (!w.imageIds || !w.imageIds.length) return false;
-    if (learningProgressOf(w) < 1) return false;
+    if (learningProgressOf(w) <= 0) return false;
     const r = retentionOf(w);
     return r !== null && r < 0.8;
   });
@@ -3666,7 +3693,7 @@ function getEnabledStages() {
 
 function getUnlearnedWords() {
   return S.words.filter(w => w.imageIds && w.imageIds.length &&
-    learningProgressOf(w) < 1);
+    learningProgressOf(w) <= 0);
 }
 
 function buildLearnSession() {
@@ -3739,9 +3766,9 @@ function startReview() {
 
   const pool = S.words.filter(w => {
     if (!w.imageIds || !w.imageIds.length) return false;
-    if (learningProgressOf(w) < 1) return false;
+    if (learningProgressOf(w) <= 0) return false;   // 没学过不进复习
     const r = retentionOf(w);
-    return r !== null && r < 0.8;
+    return r !== null && r < 0.8;                    // 学过 + 记忆保留率 < 80%
   });
   if (!pool.length) return toast('没有待复习的单词', 'warn');
 
@@ -3759,6 +3786,7 @@ function startReview() {
   T.reviewWrong = [];
   T.reviewSpellMode = '';
   T.reviewSpellPool = [];
+  T.reviewCorrectStages = {};   // ★ 每次复习独立，清空上次的题型记录
 
   const firstBatch = batches[0];
   T.tasks = firstBatch.map(w => ({ word: w, stage: 'choice' }));
@@ -3844,6 +3872,7 @@ function bindSpellInput(word, stage) {
 
 /* ★ spell / reverse 单独处理 —— 同类连续时"增量更新"，输入框不重建，键盘不抖 */
 function renderSpellOrReverse_task(t) {
+  saveTestProgress();   // ★ 拼写题也自动存档
   const w = t.word;
   const stage = t.stage;
   T.answered = false;
@@ -4239,10 +4268,8 @@ function ensureQuizTopbar(opts) {
 
   bar.querySelector('#btnQuizBack').onclick = () => {
     if (_atQuiz) {
-      // ★ 先标记"已离开答题"，再同步渲染测试首页（点了立刻有反应），
-      //   最后才让浏览器异步回退历史；回退触发的 popstate 看到 _atQuiz=false 会直接忽略，
-      //   不会重复渲染、不会回退过头落到新建页。
       _atQuiz = false;
+      _suppressNextPopstate = true;   // ★ 抑制这次返回触发的 popstate
       doQuizBackFromSystem();
       history.back();
     } else {
@@ -4309,7 +4336,8 @@ function submitSpell() {
       T.firstRoundTotal++;   // 学习模式：首答错也算一题
     }
     if (T.round === 1) {
-      T.roundErrMap[w.id] = (T.roundErrMap[w.id] || 0) + 1;
+      if (!T.roundErrMap[w.id]) T.roundErrMap[w.id] = {};
+      T.roundErrMap[w.id][task.stage] = true;
     }
     // ★ 把这个词记进「本轮错词」，批结束后会拉出来重测到全对
     if (!T.roundWrong.some(x => x.id === w.id)) {
@@ -4332,15 +4360,25 @@ function finishQuestion(ok, word) {
         T.reviewWrong.push(word);
       }
     }
-    gradeWord(word, ok);
+
+    // ★ 按题型独立 +25%：本次复习中，这个题型只算一次
+    let shouldAddProgress = false;
     if (ok) {
-      // 答对：亮绿 → 停 0.8 秒 → 下一题
+      const key = word.id;
+      if (!T.reviewCorrectStages[key]) T.reviewCorrectStages[key] = new Set();
+      if (!T.reviewCorrectStages[key].has(stage)) {
+        T.reviewCorrectStages[key].add(stage);
+        shouldAddProgress = true;
+      }
+    }
+    gradeWord(word, ok, { review: true, addProgress: shouldAddProgress });
+
+    if (ok) {
       setTimeout(() => {
         T.taskIdx++;
         renderQuestion();
       }, 800);
     } else {
-      // ★ 答错：亮红 → 停 0.8 秒 → 弹详情页（底部「下一题」）→ 点它才继续
       setTimeout(() => showLearnCard(word, false), 800);
     }
     return;
@@ -4353,7 +4391,11 @@ function finishQuestion(ok, word) {
     // 认识 / 不认识
     if (stage === 'self-sentence') {
       if (!ok) {
-        // 不认识：把这个词的 5 步重新推到队尾，从头再走
+        if (T.round === 1) {
+          if (!T.roundErrMap[word.id]) T.roundErrMap[word.id] = {};
+          T.roundErrMap[word.id]['self-sentence'] = true;
+        }
+        // 不认识：把这个词的 6 步重新推到队尾，从头再走
         for (const s of LEARN_STAGES) {
           T.tasks.push({ word, stage: s });
         }
@@ -4371,6 +4413,10 @@ function finishQuestion(ok, word) {
           renderQuestion();
         }, 800);
       } else {
+        if (T.round === 1) {
+          if (!T.roundErrMap[word.id]) T.roundErrMap[word.id] = {};
+          T.roundErrMap[word.id]['choice'] = true;
+        }
         setTimeout(() => {
           const sheet = document.getElementById('wordSheet');
           if (!sheet) { T.taskIdx++; renderQuestion(); return; }
@@ -4759,12 +4805,16 @@ function buildBatchTasks(batchIdx) {
    progress = max(0, 1 - 答错次数 × 0.25) */
 function settleBatchProgress() {
   const batch = T.batches[T.batchIdx] || [];
+  const now = nowMs();
   for (const w of batch) {
-    const errCount = T.roundErrMap[w.id] || 0;
-    const progress = Math.max(0, 1 - errCount * 0.25);
+    const errStages = T.roundErrMap[w.id] || {};
+    const errCount = Object.keys(errStages).length;
+    const base = Math.max(0, 1 - errCount * 0.25);
     if (!w.srs) w.srs = { strength: S.settings.srsInit, lastReview: null, reviews: [] };
-    w.srs.learnProgress = progress;
-    w.updatedAt = nowMs();
+    w.srs.baseRetention = base;      // ★ 初始记忆率
+    w.srs.learnProgress = base;      // 兼容老字段
+    w.srs.lastReview = now;          // ★ 衰减起点 = 学完那一刻
+    w.updatedAt = now;
     DB.put('words', w);
   }
 }
@@ -5040,7 +5090,7 @@ function showResult() {
   const acc = total ? Math.round(T.firstRoundCorrect / total * 100) : 0;
   const words = T.wordPool;
   const items = words.map(w => {
-    const p = learningProgressOf(w);
+    const p = memoryRateOf(w);
     const pct = Math.round(p * 100);
     const c = progColor(p);
     return `<div class="ret-item">
@@ -5053,7 +5103,7 @@ function showResult() {
     <div class="card">
       <div class="result-stat">
         <div class="pct">${acc}%</div>
-        <div class="sub">首轮正确 ${T.firstRoundCorrect} / ${total} 题</div>
+        <div class="sub">${isLearn ? '首轮正确' : '拼写正确'} ${T.firstRoundCorrect} / ${total} 题</div>
         <div class="sub" style="margin-top:4px;font-size:12.5px">${isLearn ? '共 ' + words.length + ' 个单词 · 全部通过 ✓' : '共 ' + words.length + ' 个单词 · 复习完成'}</div>
       </div>
     </div>
@@ -5333,10 +5383,9 @@ function openLookupDetail(w) {
   if (!modal) return;
   const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
   const meanings = getMeanings(w);
-  const p = learningProgressOf(w);
+  const p = memoryRateOf(w);
   const rc = progColor(p);
   const pTxt = Math.round(p * 100) + '%';
-
   const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
   const meaningsHtml = plainMeanings.length
     ? plainMeanings.map(m => `
@@ -5360,7 +5409,7 @@ function openLookupDetail(w) {
       <span>${esc(w.category || '未分类')}</span>
       <span class="lkd-ret" style="color:${rc}">
         <span class="rd" style="background:${rc};box-shadow:0 0 8px ${rc}"></span>
-        学习进度 ${pTxt}
+        记忆保留率 ${pTxt}
       </span>
     </div>
     ${phrasesBlock}
@@ -5705,7 +5754,7 @@ function renderLibrary() {
   if (empty) empty.hidden = true;
   box.innerHTML = list.map((w, i) => {
     const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
-    const p = learningProgressOf(w);
+    const p = memoryRateOf(w);
     const c = progColor(p);
     const pct = Math.round(p * 100) + '%';
     const meanings = getMeanings(w);
@@ -5741,7 +5790,7 @@ function openLibraryDetail(w) {
   if (!modal) return;
   const url = w.imageIds && w.imageIds.length ? imgURL(w.imageIds[0]) : null;
   const meanings = getMeanings(w);
-  const p = learningProgressOf(w);
+  const p = memoryRateOf(w);
   const rc = progColor(p);
   const pTxt = Math.round(p * 100) + '%';
   const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));
@@ -5767,7 +5816,7 @@ function openLibraryDetail(w) {
       <span>${esc(w.category || '未分类')}</span>
       <span class="lkd-ret" style="color:${rc}">
         <span class="rd" style="background:${rc};box-shadow:0 0 8px ${rc}"></span>
-        学习进度 ${pTxt}
+        记忆保留率 ${pTxt}
       </span>
     </div>
     ${phrasesBlock}
@@ -6966,6 +7015,7 @@ function bindEvents() {
    §7.5  手机返回键 / 侧滑拦截
    ══════════════════════════════════════════════ */
 let _atQuiz = false;          // 当前 history 栈顶是不是我们压的「答题层」
+let _suppressNextPopstate = false;  // ★ 抑制下一次 popstate（防止返回键触发退出框）
 
 /* 系统返回键触发的"退回上一级"——和左上角「←」做一样的事 */
 function doQuizBackFromSystem() {
@@ -7030,6 +7080,11 @@ function initBackGuard() {
     // ★ 用户已确认退出 → 放行这次，让浏览器/PWA 自己处理
     if (_exitingApp) {
       _exitingApp = false;
+      return;
+    }
+    // ★ 左上角返回键触发的回退 → 忽略，不再弹退出框
+    if (_suppressNextPopstate) {
+      _suppressNextPopstate = false;
       return;
     }
 
@@ -7133,10 +7188,22 @@ async function boot() {
     S.savedLearnProgress  = loadTestProgress('learn');
     S.savedReviewProgress = loadTestProgress('review');
 
-    // ★ 一次性迁移：老词没有 learnProgress 字段 → 补为 0
+    // ★ 一次性迁移：把老数据补齐到新模型
     for (const w of S.words) {
-      if (w.srs && w.srs.learnProgress === undefined) {
+      if (!w.srs) continue;
+      let changed = false;
+      // 有 learnProgress 但没 baseRetention → 补 baseRetention
+      if (w.srs.learnProgress !== undefined && w.srs.baseRetention === undefined) {
+        w.srs.baseRetention = w.srs.learnProgress;
+        changed = true;
+      }
+      // 都没记录 → 视为没学过
+      if (w.srs.learnProgress === undefined && w.srs.baseRetention === undefined) {
         w.srs.learnProgress = 0;
+        w.srs.baseRetention = 0;
+        changed = true;
+      }
+      if (changed) {
         try { await DB.put('words', w); } catch (e) {}
       }
     }

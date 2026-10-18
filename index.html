@@ -3667,12 +3667,26 @@ function bindSpellSpeakBtn(word) {
     lastAt = now;
     Speech.speak(word.text, { force: true });
   };
-  // ★ 用 pointerdown 代替 click：点音频按钮时输入框会失焦、安卓收键盘，
-  //   这个动作可能吞掉随后的 click，导致"点了没声音"。
-  //   pointerdown 在手指按下瞬间触发，早于失焦，语音一定能播。
-  btn.onpointerdown = play;
-  // 兼容老浏览器（不支持 PointerEvent 的极老设备）
-  if (!window.PointerEvent) btn.onclick = play;
+  // ★ 按钮永远不参与焦点：它一获得焦点，输入框就失焦，键盘必收。
+  btn.tabIndex = -1;
+  // ★ 核心：在「手指按下」的瞬间就拦住默认行为，
+  //   按钮不会抢走输入框的焦点 → 键盘不收 → 画面纹丝不动。
+  //   语音在同一瞬间播，所以 preventDefault 不会让它哑掉。
+  btn.onpointerdown = (e) => {
+    e.preventDefault();
+    play();
+  };
+  // ★ 双保险：老内核 / pointerdown 被绕过时，mousedown 也拦一道
+  btn.onmousedown = (e) => {
+    e.preventDefault();
+  };
+  // ★ 最兜底：极老浏览器没有 PointerEvent，才退回 click 播放
+  if (!window.PointerEvent) {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      play();
+    };
+  }
 }
 
 function bindSpellInput(word, stage) {

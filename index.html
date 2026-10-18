@@ -4285,23 +4285,18 @@ function finishQuestion(ok, word) {
       if (!T.reviewWrong.some(x => x.id === word.id)) {
         T.reviewWrong.push(word);
       }
-      const fb = $('#quizFb');
-      if (fb) {
-        fb.className = 'quiz-feedback bad';
-        if (stage === 'choice-zh') {
-          const correctText = meaningsToString(getMeanings(word).filter(m => !isPhraseMeaning(m)));
-          fb.textContent = `✗ 正确答案：${correctText}`;
-        } else {
-          fb.textContent = `✗ 正确答案：${word.text}`;
-        }
-      }
     }
     gradeWord(word, ok);
-    // 答对停 0.8 秒、答错停 1.2 秒，让用户看清绿 / 红标记再进下一题
-    setTimeout(() => {
-      T.taskIdx++;
-      renderQuestion();
-    }, ok ? 800 : 1200);
+    if (ok) {
+      // 答对：亮绿 → 停 0.8 秒 → 下一题
+      setTimeout(() => {
+        T.taskIdx++;
+        renderQuestion();
+      }, 800);
+    } else {
+      // ★ 答错：亮红 → 停 0.8 秒 → 弹详情页（底部「下一题」）→ 点它才继续
+      setTimeout(() => showLearnCard(word, false), 800);
+    }
     return;
   }
 
@@ -4346,52 +4341,36 @@ function finishQuestion(ok, word) {
       return;
     }
 
-    // ★ 看词选图：选对停 1 秒进下一题；选错停 1 秒弹详情页，收起后进下一题
+    // ★ 看词选图：选对停 0.8 秒进下一题；选错停 0.8 秒弹详情页，点「下一题」才继续
     if (stage === 'choice') {
-      const fb = $('#quizFb');
-      if (fb && !ok) {
-        fb.className = 'quiz-feedback bad';
-        fb.textContent = `✗ 正确答案：${word.text}`;
-      }
-
       if (ok) {
-        // 选对：绿光已亮 → 停 1 秒 → 下一题
         setTimeout(() => {
           T.taskIdx++;
           renderQuestion();
-        }, 1000);
+        }, 800);
       } else {
-        // 选错：红光已亮 → 停 1 秒 → 弹详情页 → 收起后进下一题
         setTimeout(() => {
           const sheet = document.getElementById('wordSheet');
           if (!sheet) { T.taskIdx++; renderQuestion(); return; }
           sheet.classList.add('open');
           const closeBtn = document.getElementById('wordSheetClose');
           if (closeBtn) {
+            closeBtn.textContent = '下一题';   // ★ 详情页底部按钮改为「下一题」
             closeBtn.onclick = () => {
               sheet.classList.remove('open');
               T.taskIdx++;
               renderQuestion();
             };
           }
-        }, 1000);
+        }, 800);
       }
       return;
     }
 
     // 前 2 步（example / choice-zh）
-    const fb = $('#quizFb');
-    if (fb && !ok) {
-      fb.className = 'quiz-feedback bad';
-      if (stage === 'choice-zh') {
-        const correctText = meaningsToString(getMeanings(word).filter(m => !isPhraseMeaning(m)));
-        fb.textContent = `✗ 正确答案：${correctText}`;
-      } else {
-        fb.textContent = `✗ 正确答案：${word.text}`;
-      }
-    }
+    // ★ 选错只亮红，不再在底部弹"正确答案"；0.8 秒后统一弹详情页，底部是「下一题」
     Speech.speak(word.text);
-    setTimeout(() => showLearnCard(word, ok), 700);
+    setTimeout(() => showLearnCard(word, ok), 800);
     return;
   }
 }
@@ -4503,11 +4482,12 @@ function showLearnCard(word, ok) {
   const imgUrl = (w.imageIds && w.imageIds.length) ? imgURL(w.imageIds[0]) : null;
   const meanings = getMeanings(w);
 
+  const _learnLabel = (T.mode === 'review') ? '复习一下' : '学习一下';
   let progressText;
   if (T.round === 1) {
-    progressText = `第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · 学习一下`;
+    progressText = `第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · ${_learnLabel}`;
   } else {
-    progressText = `错题重测 · 第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · 学习一下`;
+    progressText = `错题重测 · 第 ${T.taskIdx + 1} / ${T.tasks.length} 题 · ${_learnLabel}`;
   }
 
   const plainMeanings = meanings.filter(m => !isPhraseMeaning(m));

@@ -2093,7 +2093,7 @@ function openConfirm(title, msg, onYes, onNo) {
   modal.hidden = false;
   pushModalHistory('lookupDetailModal');
   const _lkMP = $('#lkdMorePhrases');
-  const close = () => { modal.hidden = true; };
+  const close = () => { closeModal('confirmModal'); };
   $('#confirmYes').onclick = () => { close(); onYes && onYes(); };
   $('#confirmNo').onclick = () => { close(); onNo && onNo(); };
 }
@@ -2796,8 +2796,7 @@ function openSubModal(type) {
 
 function openSettings() {
   refreshThemeButtons();
-  $('#subModal').hidden = true;   // ★ 打开主设置前，先关掉可能残留的子弹窗
-  clearModalHistory('subModal');  // ★ 顺带清掉子弹窗的历史标志，避免下次打开子弹窗不压历史
+  closeModal('subModal');  // ★ 打开主设置前，先关掉可能残留的子弹窗并清历史
 
   const setShort = (id, isOk) => {
     const el = $(id);
@@ -2823,7 +2822,7 @@ function openSettings() {
 }
 
 function closeSettings() {
-  $('#settingsModal').hidden = true;
+  closeModal('settingsModal');
 }
 
 /* ── 数据统计面板 ── */
@@ -3413,7 +3412,7 @@ async function showWordGlance(raw) {
     modal.hidden = false;
     pushModalHistory('lookupDetailModal');
     const btn = $('#glanceCloseBtn');
-    if (btn) btn.onclick = () => { modal.hidden = true; };
+    if (btn) btn.onclick = () => { closeModal('lookupDetailModal'); };
   }
 }
 
@@ -5370,7 +5369,7 @@ function openDictDetail(entry) {
   const mp = $('#ddMorePhrases');
   if (mp) mp.onclick = () => openListModal('全部词组', phrases, 'phrases');
   $('#ddSpeak').onclick = () => Speech.speak(entry.word);
-  $('#ddClose').onclick = () => { modal.hidden = true; };
+  $('#ddClose').onclick = () => { closeModal('lookupDetailModal'); };
 }
 
 function openLookupDetail(w) {
@@ -5421,7 +5420,7 @@ function openLookupDetail(w) {
   const _lkMS = $('#lkdMoreSentences');
   if (_lkMS) _lkMS.onclick = () => openListModal('全部例句', sentences, 'sentences');
   $('#lkdSpeak').onclick = () => Speech.speak(w.text);
-  $('#lkdClose').onclick = () => { modal.hidden = true; };
+  $('#lkdClose').onclick = () => { closeModal('lookupDetailModal'); };
 }
 
 /* ── 接口盒子词典（英查中，带音标和词性）── */
@@ -5659,7 +5658,7 @@ function openSmartImagePicker(word, onPicked) {
 
   fetchImages();
   $('#smartImgRefresh').onclick = fetchImages;
-  $('#smartImgCancel').onclick = () => { modal.hidden = true; };
+  $('#smartImgCancel').onclick = () => { closeModal('smartImageModal'); };
   grid.onclick = async e => {
     const btn = e.target.closest('.pick');
     if (!btn) return;
@@ -5672,7 +5671,7 @@ function openSmartImagePicker(word, onPicked) {
       const file = new File([blob], `${word}.jpg`, { type: 'image/jpeg' });
       const added = await addImagesFromFiles([file]);
       if (added.length) {
-        modal.hidden = true;
+        closeModal('smartImageModal');
         if (onPicked) onPicked(added);
         toast('图片已下载并绑定', 'ok');
       }
@@ -5831,12 +5830,12 @@ function openLibraryDetail(w) {
   const _wdMS = $('#wdMoreSentences');
   if (_wdMS) _wdMS.onclick = () => openListModal('全部例句', sentences, 'sentences');
   $('#wdSpeak').onclick = () => Speech.speak(w.text);
-  $('#wdClose').onclick = () => { modal.hidden = true; };
+  $('#wdClose').onclick = () => { closeModal('wordDetailModal'); };
   $('#wdEdit').onclick = () => openEditWord(w);
   $('#wdDelete').onclick = async () => {
     if (!confirm(`删除「${w.text}」？\n\n如果图片没被其他单词引用，会一并删掉。`)) return;
     await deleteWordFromLibrary(w);
-    modal.hidden = true;
+    closeModal('wordDetailModal');
     renderLibrary();
     toast('已删除', 'ok');
   };
@@ -6882,7 +6881,8 @@ function bindEvents() {
   // ── 弹窗：点击背景关闭 ──
   document.addEventListener('click', e => {
     if (e.target.classList && e.target.classList.contains('modal') && !e.target.hidden) {
-      e.target.hidden = true;
+      if (MODAL_IDS.includes(e.target.id)) closeModal(e.target.id);
+      else e.target.hidden = true;
     }
   });
 
@@ -6966,11 +6966,11 @@ function bindEvents() {
 
   // ── 通用列表弹窗（查看全部） ──
   const _lmClose = $('#listModalClose');
-  if (_lmClose) _lmClose.addEventListener('click', () => { $('#listModal').hidden = true; });
+  if (_lmClose) _lmClose.addEventListener('click', () => { closeModal('listModal'); });
 
   // ── 数据统计 ──
   $('#btnStats').addEventListener('click', openStats);
-  $('#statsClose').addEventListener('click', () => { $('#statsModal').hidden = true; });
+  $('#statsClose').addEventListener('click', () => { closeModal('statsModal'); });
 
   // ── 设置 ──
   $('#btnSettings').addEventListener('click', openSettings);

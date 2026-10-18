@@ -1570,7 +1570,7 @@ body.test-mode .word-sheet-panel{
       </p>
       <button type="button" class="btn block" id="btnGenSentence"
               style="margin-bottom:8px;font-size:13.5px;min-height:42px;border-style:dashed">
-        🤖 用图片生成例句
+        AI图片生例句
       </button>
       <textarea class="input" id="cwSentence" rows="3"
                 placeholder="英文句子&#10;中文翻译（智谱生成后可手动修改）"
@@ -1756,24 +1756,13 @@ body.test-mode .word-sheet-panel{
   </div>
 </div>
 
-<!-- ═══════ 设置弹窗 ═══════ -->
+<!-- ═══════ 设置弹窗（主菜单） ═══════ -->
 <div id="settingsModal" class="modal" hidden>
   <div class="modal-box">
     <div class="close-bar"></div>
     <h3>设置</h3>
 
-    <!-- 概览 -->
-    <div class="set-section">
-      <div class="set-title">📊 概览</div>
-      <div class="about-row"><span class="k">应用</span><span class="v">LexiVault 移动版</span></div>
-      <div class="about-row"><span class="k">版本</span><span class="v" id="aboutVersion">0.1.0</span></div>
-      <div class="about-row"><span class="k">单词</span><span class="v" id="aboutWords">0</span></div>
-      <div class="about-row"><span class="k">图片</span><span class="v" id="aboutImages">0</span></div>
-      <div class="about-row"><span class="k">数据大小</span><span class="v" id="aboutSize">0 KB</span></div>
-      <div class="about-row"><span class="k">上次同步</span><span class="v" id="aboutSync">从未</span></div>
-    </div>
-
-    <!-- 主题 -->
+    <!-- 1. 主题 -->
     <div class="set-section">
       <div class="set-title">🎨 主题</div>
       <div class="theme-switch">
@@ -1782,153 +1771,84 @@ body.test-mode .word-sheet-panel{
       </div>
     </div>
 
-    <!-- 测试环节 -->
-    <div class="set-section">
-      <div class="set-title">📝 测试环节</div>
-      <div class="sync-hint">
-        勾选测试要覆盖的环节。「看例句选图」永远开启（学习第一步，也是最基础的一关）。其余环节按「看词选图 → 看图拼词 → 看中拼英文」的顺序走。
-      </div>
-      <div class="stage-switch">
-        <button class="stage-btn" data-stage="choice">🖼 看词选图</button>
-        <button class="stage-btn" data-stage="spell">✏️ 看图拼词</button>
-        <button class="stage-btn" data-stage="reverse">🇨🇳 看中拼英文</button>
-      </div>
+    <!-- 2. 测试环节 -->
+    <div class="set-section" style="margin-top:20px">
+      <button class="set-btn" id="btnOpenStage">
+        <span class="ico">📝</span>
+        <span class="body">测试环节
+          <small>选择要练习的题型</small>
+        </span>
+      </button>
     </div>
 
-    <!-- 数据管理 -->
-    <div class="set-section">
+    <!-- 3. 接口设置 -->
+    <div class="set-section" style="margin-top:20px">
+      <div class="set-title">🔌 接口设置</div>
+      <button class="set-btn" id="btnOpenDav">
+        <span class="ico">☁️</span>
+        <span class="body">坚果云同步接口
+          <small id="davStatusShort">未配置</small>
+        </span>
+      </button>
+      <button class="set-btn" id="btnOpenApihz">
+        <span class="ico">📚</span>
+        <span class="body">盒子词典
+          <small id="apihzStatusShort">未配置</small>
+        </span>
+      </button>
+      <button class="set-btn" id="btnOpenZhipu">
+        <span class="ico">🤖</span>
+        <span class="body">智谱 AI 例句生成
+          <small id="zhipuStatusShort">未配置</small>
+        </span>
+      </button>
+      <button class="set-btn" id="btnOpenImg">
+        <span class="ico">🖼</span>
+        <span class="body">智能配图
+          <small id="imgStatusShort">未配置</small>
+        </span>
+      </button>
+    </div>
+
+    <!-- 4. 数据管理 -->
+    <div class="set-section" style="margin-top:20px">
       <div class="set-title">💾 数据管理</div>
       <button class="set-btn" id="setExportLight">
         <span class="ico">📦</span>
-        <span class="body">导出（轻量）
-          <small>只有单词和释义，不带图片，几十 KB</small>
-        </span>
+        <span class="body">导出（轻量）</span>
       </button>
       <button class="set-btn" id="setExportFull">
         <span class="ico">🎁</span>
-        <span class="body">导出（完整）
-          <small>含图片，可迁移到新手机，文件较大</small>
-        </span>
+        <span class="body">导出（完整）</span>
       </button>
       <button class="set-btn" id="setImport">
         <span class="ico">📥</span>
-        <span class="body">导入数据
-          <small>从 JSON 文件合并进本地词库</small>
-        </span>
+        <span class="body">导入数据</span>
       </button>
     </div>
 
-    <!-- 云同步 -->
-    <div class="set-section">
-      <div class="set-title">☁️ 坚果云同步</div>
-
-      <div class="sync-hint">
-        在坚果云网页版「账户信息 → 安全选项 → 第三方应用管理」生成一个<b>应用密码</b>，
-        填到下面。<b>不要用登录密码</b>。
-      </div>
-
-      <div class="sync-field">
-        <label>服务器地址</label>
-        <input id="davUrl" placeholder="https://dav.jianguoyun.com/dav" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-      </div>
-      <div class="sync-field">
-        <label>账号（坚果云登录邮箱）</label>
-        <input id="davUser" placeholder="your@email.com" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-      </div>
-      <div class="sync-field">
-        <label>应用密码</label>
-        <input id="davPass" type="password" placeholder="在坚果云生成的应用密码" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-      </div>
-
-      <div class="sync-actions">
-        <button class="btn" id="davTest">🔍 测试连接</button>
-        <button class="btn primary" id="davSave">💾 保存配置</button>
-      </div>
-
-      <button class="btn primary block lg" id="davSync" style="margin-bottom:10px">
-        ☁️ 立即同步
-      </button>
-
-      <div class="sync-status" id="davStatus">未配置</div>
-      <div class="sync-progress" id="davProgress"></div>
-    </div>
-
-    <!-- 接口盒子词典 -->
-    <div class="set-section">
-      <div class="set-title">📚 接口盒子词典</div>
-      <div class="sync-hint">
-        去 <b>apihz.cn</b> 注册后，在用户中心能看到自己的 ID 和 KEY。填到下面，
-        新建单词页的「📖 查词」会自动填音标和释义。
-      </div>
-      <div class="sync-field">
-        <label>ID</label>
-        <input id="apiHzId" placeholder="在用户中心复制" autocomplete="off" spellcheck="false" inputmode="numeric">
-      </div>
-      <div class="sync-field">
-        <label>KEY</label>
-        <input id="apiHzKey" type="password" placeholder="在用户中心复制" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="sync-actions" style="margin-top:10px">
-        <button class="btn" id="apiHzTest">🔍 测试</button>
-        <button class="btn primary" id="apiHzSave">💾 保存</button>
-      </div>
-      <div class="sync-status" id="apiHzStatus">未配置</div>
-    </div>
-
-    <!-- 智谱 AI 例句生成 -->
-    <div class="set-section">
-      <div class="set-title">🤖 智谱 AI（例句生成）</div>
-      <div class="sync-hint">
-        去 <b>open.bigmodel.cn</b> 注册后，在「API Keys」页面创建一个 Key，粘贴到下面。
-        手机版用它 <b>看图生成例句</b>，模型为 <b>glm-4v-flash</b>（免费）。
-      </div>
-      <div class="sync-field">
-        <label>API Key</label>
-        <input id="zhipuKey" type="password" placeholder="粘贴智谱 API Key" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="sync-actions" style="margin-top:10px">
-        <button class="btn" id="zhipuTest">🔍 测试</button>
-        <button class="btn primary" id="zhipuSave">💾 保存</button>
-      </div>
-      <div class="sync-status" id="zhipuStatus">未配置</div>
-    </div>
-
-    <!-- 智能配图 -->
-    <div class="set-section">
-      <div class="set-title">🖼 智能配图</div>
-      <div class="sync-hint">
-        Pixabay：去 <b>pixabay.com/api/docs/</b> 登录后页面顶部就能看到 API Key。
-      </div>
-      <div class="sync-field">
-        <label>API 来源</label>
-        <select id="imgApiProvider" style="width:100%;padding:12px 14px;font-size:14px;border-radius:11px;border:1px solid var(--border);background:rgba(var(--text-rgb),.05);color:var(--text);font-family:inherit;outline:none;-webkit-appearance:none">
-          <option value="pixabay">Pixabay（推荐）</option>
-          <option value="loremflickr">LoremFlickr（免注册，质量一般）</option>
-        </select>
-      </div>
-      <div class="sync-field">
-        <label>API Key</label>
-        <input id="imgApiKey" placeholder="粘贴 Pixabay API Key" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="sync-actions" style="margin-top:10px">
-        <button class="btn" id="imgApiTest">🔍 测试</button>
-        <button class="btn primary" id="imgApiSave">💾 保存</button>
-      </div>
-      <div class="sync-status" id="imgApiStatus">未配置</div>
-    </div>
-
-    <!-- 危险操作 -->
-    <div class="set-section">
+    <!-- 5. 危险操作 -->
+    <div class="set-section" style="margin-top:20px">
       <div class="set-title">⚠️ 危险操作</div>
       <button class="set-btn warn" id="setClearData">
         <span class="ico">🗑</span>
-        <span class="body">清空本地数据
-          <small>删除手机上的全部单词、图片、设置</small>
-        </span>
+        <span class="body">清空本地数据</span>
       </button>
     </div>
 
-    <button class="btn block lg" id="settingsClose" style="margin-top:20px">关闭</button>
+    <!-- 6. 概览 -->
+    <button class="btn block lg" id="btnOpenOverview" style="background:#ff4d4f; color:#fff; border:none; margin-top:20px; margin-bottom:20px; font-size:16px; font-weight:700">📊 概览</button>
+
+    <button class="btn block lg" id="settingsClose">关闭</button>
+  </div>
+</div>
+
+<!-- ═══════ 子设置弹窗 ═══════ -->
+<div id="subModal" class="modal" hidden>
+  <div class="modal-box" id="subModalBox">
+    <div class="close-bar"></div>
+    <h3 id="subModalTitle">标题</h3>
+    <div id="subModalBody"></div>
   </div>
 </div>
 
@@ -2590,38 +2510,191 @@ function switchView(name) {
 }
 
 /* ══════════════════════════════════════════════
-   §6  设置弹窗
+   §6  设置弹窗（主菜单 + 子弹窗）
    ══════════════════════════════════════════════ */
-function openSettings() {
-  $('#aboutVersion').textContent = APP_VERSION;
-  $('#aboutWords').textContent = S.words.length;
-  $('#aboutImages').textContent = S.images.length;
-  $('#aboutSize').textContent = fmtSize(calcDataSize());
-  $('#aboutSync').textContent = S.settings.lastSyncAt
-    ? timeAgo(S.settings.lastSyncAt)
-    : '从未';
 
-  // 填充 WebDAV 配置
-  const wd = S.settings.webdav || {};
-  const _u = $('#davUrl'), _n = $('#davUser'), _p = $('#davPass');
-  if (_u) _u.value = wd.url || 'https://dav.jianguoyun.com/dav';
-  if (_n) _n.value = wd.user || '';
-  if (_p) _p.value = wd.pass || '';
-  if (_u && !_u.value) _u.value = 'https://dav.jianguoyun.com/dav';
+/* ★ 打开子弹窗 */
+function openSubModal(type) {
+  const modal = $('#subModal');
+  const title = $('#subModalTitle');
+  const body = $('#subModalBody');
+  if (!modal || !title || !body) return;
 
-  // 同步状态显示
-  if (WebDAV.isConfigured()) {
-    const when = S.settings.lastSyncAt ? timeAgo(S.settings.lastSyncAt) : '尚未同步';
-    setSyncStatus(`✅ 已配置 · 上次同步：${when}`, 'ok');
-  } else {
-    setSyncStatus('未配置', 'info');
+  if (type === 'overview') {
+    title.textContent = '📊 概览';
+    body.innerHTML = `
+      <div class="about-row"><span class="k">应用</span><span class="v">LexiVault 移动版</span></div>
+      <div class="about-row"><span class="k">版本</span><span class="v">${APP_VERSION}</span></div>
+      <div class="about-row"><span class="k">单词</span><span class="v">${S.words.length}</span></div>
+      <div class="about-row"><span class="k">图片</span><span class="v">${S.images.length}</span></div>
+      <div class="about-row"><span class="k">数据大小</span><span class="v">${fmtSize(calcDataSize())}</span></div>
+      <div class="about-row"><span class="k">上次同步</span><span class="v">${S.settings.lastSyncAt ? timeAgo(S.settings.lastSyncAt) : '从未'}</span></div>
+    `;
+  } else if (type === 'stage') {
+    title.textContent = '📝 测试环节';
+    const st = Object.assign({
+      example: true, 'choice-zh': true, choice: true,
+      'self-sentence': true, spell: true, reverse: true
+    }, S.settings.testStages || {});
+    
+    body.innerHTML = `
+      <div class="sync-hint">勾选测试要覆盖的环节，至少保留一个。</div>
+      <div class="stage-switch" style="margin-top:14px">
+        <button class="stage-btn ${st.example !== false ? 'on' : ''}" data-stage="example">🖼 看例句选图</button>
+        <button class="stage-btn ${st['choice-zh'] !== false ? 'on' : ''}" data-stage="choice-zh">🀄 看单词选中文</button>
+        <button class="stage-btn ${st.choice !== false ? 'on' : ''}" data-stage="choice">🖼 看词选图</button>
+        <button class="stage-btn ${st['self-sentence'] !== false ? 'on' : ''}" data-stage="self-sentence">🤔 判断认不认识</button>
+        <button class="stage-btn ${st.spell !== false ? 'on' : ''}" data-stage="spell">✏️ 看图拼词</button>
+        <button class="stage-btn ${st.reverse !== false ? 'on' : ''}" data-stage="reverse">🇨🇳 看中文拼英文</button>
+      </div>
+    `;
+    $$('.stage-btn', body).forEach(btn => {
+      btn.onclick = () => {
+        const key = btn.dataset.stage;
+        const cur = Object.assign({
+          example: true, 'choice-zh': true, choice: true,
+          'self-sentence': true, spell: true, reverse: true
+        }, S.settings.testStages || {});
+        
+        const isOn = btn.classList.contains('on');
+        if (isOn) {
+          const enabledCount = Object.keys(cur).filter(k => cur[k] !== false).length;
+          if (enabledCount <= 1) return toast('至少保留一个环节', 'warn');
+          cur[key] = false;
+          btn.classList.remove('on');
+        } else {
+          cur[key] = true;
+          btn.classList.add('on');
+        }
+        S.settings.testStages = cur;
+        saveSettings();
+        toast(isOn ? '已关闭' : '已开启', 'ok');
+      };
+    });
+  } else if (type === 'dav') {
+    title.textContent = '☁️ 坚果云同步';
+    const wd = S.settings.webdav || {};
+    body.innerHTML = `
+      <div class="sync-hint">在坚果云网页版生成<b>应用密码</b>。</div>
+      <div class="sync-field"><label>服务器地址</label><input id="davUrl" value="${esc(wd.url || 'https://dav.jianguoyun.com/dav')}"></div>
+      <div class="sync-field"><label>账号</label><input id="davUser" value="${esc(wd.user || '')}"></div>
+      <div class="sync-field"><label>应用密码</label><input id="davPass" type="password" value="${esc(wd.pass || '')}"></div>
+      <div class="sync-actions">
+        <button class="btn" id="davTest">🔍 测试连接</button>
+        <button class="btn primary" id="davSave">💾 保存配置</button>
+      </div>
+      <div class="sync-status" id="davStatus">${WebDAV.isConfigured() ? '✅ 已配置' : '未配置'}</div>
+    `;
+    $('#davSave').onclick = () => {
+      const url = $('#davUrl').value.trim(), user = $('#davUser').value.trim(), pass = $('#davPass').value.trim();
+      if (!url || !user || !pass) return toast('三项都要填', 'warn');
+      S.settings.webdav = { url, user, pass };
+      saveSettings();
+      $('#davStatus').textContent = '✅ 配置已保存'; $('#davStatus').className = 'sync-status ok';
+      openSettings();
+      toast('配置已保存', 'ok');
+    };
+    $('#davTest').onclick = async () => {
+      const url = $('#davUrl').value.trim(), user = $('#davUser').value.trim(), pass = $('#davPass').value.trim();
+      if (!url || !user || !pass) return toast('三项都要填', 'warn');
+      const backup = S.settings.webdav;
+      S.settings.webdav = { url, user, pass };
+      $('#davStatus').textContent = '⏳ 正在测试…'; $('#davStatus').className = 'sync-status';
+      try {
+        await WebDAV.testConnection();
+        $('#davStatus').textContent = '✅ 连接成功'; $('#davStatus').className = 'sync-status ok';
+        toast('连接成功', 'ok');
+      } catch (e) {
+        S.settings.webdav = backup;
+        $('#davStatus').textContent = '❌ ' + (e.message || e); $('#davStatus').className = 'sync-status err';
+      }
+    };
+  } else if (type === 'apihz') {
+    title.textContent = '📚 盒子词典';
+    body.innerHTML = `
+      <div class="sync-hint">去 <b>apihz.cn</b> 注册后填入 ID 和 KEY。</div>
+      <div class="sync-field"><label>ID</label><input id="apiHzId" value="${esc(S.apiHz.id)}"></div>
+      <div class="sync-field"><label>KEY</label><input id="apiHzKey" type="password" value="${esc(S.apiHz.key)}"></div>
+      <div class="sync-actions">
+        <button class="btn" id="apiHzTest">🔍 测试</button>
+        <button class="btn primary" id="apiHzSave">💾 保存</button>
+      </div>
+      <div class="sync-status" id="apiHzStatus">${S.apiHz.id && S.apiHz.key ? '✅ 已配置' : '未配置'}</div>
+    `;
+    $('#apiHzSave').onclick = () => {
+      localStorage.setItem('lexivault.mobile.apiHz.id', $('#apiHzId').value.trim());
+      localStorage.setItem('lexivault.mobile.apiHz.key', $('#apiHzKey').value.trim());
+      openSettings();
+      toast('已保存', 'ok');
+    };
+    $('#apiHzTest').onclick = testApiHz;
+  } else if (type === 'zhipu') {
+    title.textContent = '🤖 智谱 AI';
+    body.innerHTML = `
+      <div class="sync-hint">去 <b>open.bigmodel.cn</b> 创建 API Key。</div>
+      <div class="sync-field"><label>API Key</label><input id="zhipuKey" type="password" value="${esc(S.zhipu.key)}"></div>
+      <div class="sync-actions">
+        <button class="btn" id="zhipuTest">🔍 测试</button>
+        <button class="btn primary" id="zhipuSave">💾 保存</button>
+      </div>
+      <div class="sync-status" id="zhipuStatus">${S.zhipu.key ? '✅ 已配置' : '未配置'}</div>
+    `;
+    $('#zhipuSave').onclick = () => {
+      localStorage.setItem('lexivault.mobile.zhipu.key', $('#zhipuKey').value.trim());
+      openSettings();
+      toast('已保存', 'ok');
+    };
+    $('#zhipuTest').onclick = () => {
+      const statusEl = $('#zhipuStatus');
+      statusEl.className = 'sync-status'; statusEl.textContent = '⏳ 正在测试…';
+      fetch('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
+        .then(r => r.blob())
+        .then(blob => Zhipu.generateSentence('test', blob))
+        .then(r => { statusEl.className = 'sync-status ok'; statusEl.textContent = '✅ 连接成功'; })
+        .catch(e => { statusEl.className = 'sync-status err'; statusEl.textContent = '❌ ' + (e.message || e); });
+    };
+  } else if (type === 'img') {
+    title.textContent = '🖼 智能配图';
+    body.innerHTML = `
+      <div class="sync-hint">Pixabay：去 <b>pixabay.com/api/docs/</b> 获取 Key。</div>
+      <div class="sync-field">
+        <label>API 来源</label>
+        <select id="imgApiProvider" style="width:100%;padding:12px 14px;font-size:14px;border-radius:11px;border:1px solid var(--border);background:rgba(var(--text-rgb),.05);color:var(--text);">
+          <option value="pixabay" ${S.imgApi.provider === 'pixabay' ? 'selected' : ''}>Pixabay</option>
+          <option value="loremflickr" ${S.imgApi.provider === 'loremflickr' ? 'selected' : ''}>LoremFlickr</option>
+        </select>
+      </div>
+      <div class="sync-field"><label>API Key</label><input id="imgApiKey" value="${esc(S.imgApi.key)}"></div>
+      <div class="sync-actions"><button class="btn primary" id="imgApiSave">💾 保存</button></div>
+    `;
+    $('#imgApiSave').onclick = () => {
+      localStorage.setItem('lexivault.mobile.imgApi.provider', $('#imgApiProvider').value);
+      localStorage.setItem('lexivault.mobile.imgApi.key', $('#imgApiKey').value.trim());
+      openSettings();
+      toast('已保存', 'ok');
+    };
   }
-  setSyncProgress('');
 
-  refreshStageButtons();
+  modal.hidden = false;
+}
+
+function openSettings() {
+  refreshThemeButtons();
+  
+  const setShort = (id, isOk) => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = isOk ? '✅ 已配置' : '未配置';
+    el.style.color = isOk ? '#3ddc97' : '';
+  };
+  setShort('#davStatusShort', WebDAV.isConfigured());
+  setShort('#apihzStatusShort', !!(S.apiHz.id && S.apiHz.key));
+  setShort('#zhipuStatusShort', !!S.zhipu.key);
+  setShort('#imgStatusShort', !!S.imgApi.key);
 
   $('#settingsModal').hidden = false;
 }
+
 function closeSettings() {
   $('#settingsModal').hidden = true;
 }
@@ -3480,7 +3553,14 @@ const LEARN_BATCH_SIZE = 10;
 /* 学习阶段的 5 步，顺序不能改 */
 const LEARN_STAGES = ['example', 'choice-zh', 'choice', 'self-sentence', 'spell', 'reverse'];
 
-/* 按 20 词一组，把未学习词切分 */
+function getEnabledStages() {
+  const st = Object.assign({
+    example: true, 'choice-zh': true, choice: true,
+    'self-sentence': true, spell: true, reverse: true
+  }, S.settings.testStages || {});
+  return LEARN_STAGES.filter(s => st[s] !== false);
+}
+
 function getUnlearnedWords() {
   return S.words.filter(w => w.imageIds && w.imageIds.length &&
     learningProgressOf(w) < 1);
@@ -3499,7 +3579,8 @@ function buildLearnSession() {
   // ★ 直接构建第一批任务（不能调 buildBatchTasks：它读的是 T.batches，此刻还没赋值）
   const firstBatch = batches[0] || [];
   const tasks = [];
-  for (const stage of LEARN_STAGES) {
+  const stages = getEnabledStages();
+  for (const stage of stages) {
     for (const word of firstBatch) {
       tasks.push({ word, stage });
     }
@@ -4611,7 +4692,8 @@ function updateExitButton() {
 function buildBatchTasks(batchIdx) {
   const batch = T.batches[batchIdx] || [];
   const tasks = [];
-  for (const stage of LEARN_STAGES) {
+  const stages = getEnabledStages();
+  for (const stage of stages) {
     for (const word of batch) {
       tasks.push({ word, stage });
     }
@@ -6485,51 +6567,6 @@ function bindEvents() {
     });
   };
 
-  // ── 接口盒子配置 ──
-  const _ahSave = $('#apiHzSave');
-  if (_ahSave) _ahSave.onclick = () => {
-    const id = ($('#apiHzId').value || '').trim();
-    const key = ($('#apiHzKey').value || '').trim();
-    localStorage.setItem('lexivault.mobile.apiHz.id', id);
-    localStorage.setItem('lexivault.mobile.apiHz.key', key);
-    toast('已保存接口盒子配置', 'ok');
-    syncApiHzUI();
-  };
-  const _ahTest = $('#apiHzTest');
-  if (_ahTest) _ahTest.onclick = testApiHz;
-
-  // ── 智谱 AI 配置 ──
-  const _zpSave = $('#zhipuSave');
-  if (_zpSave) _zpSave.onclick = () => {
-    const key = ($('#zhipuKey').value || '').trim();
-    try { localStorage.setItem('lexivault.mobile.zhipu.key', key); } catch (e) {}
-    toast(key ? '已保存智谱 Key' : '已清空智谱 Key', 'ok');
-    syncZhipuUI();
-  };
-  const _zpTest = $('#zhipuTest');
-  if (_zpTest) _zpTest.onclick = async () => {
-    const statusEl = $('#zhipuStatus');
-    const key = S.zhipu.key;
-    if (!key) {
-      statusEl.className = 'sync-status warn';
-      statusEl.textContent = '⚠️ 请先保存 API Key';
-      return;
-    }
-    statusEl.className = 'sync-status';
-    statusEl.textContent = '⏳ 正在测试…';
-    try {
-      const testBlob = await (await fetch(
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
-      )).blob();
-      const r = await Zhipu.generateSentence('test', testBlob);
-      statusEl.className = 'sync-status ok';
-      statusEl.textContent = '✅ 连接成功 · ' + (r.en ? r.en.slice(0, 40) : '已响应');
-    } catch (e) {
-      statusEl.className = 'sync-status err';
-      statusEl.textContent = '❌ ' + (e.message || e);
-    }
-  };
-
   // ── 新建单词页：生成例句按钮 ──
   const _genBtn = $('#btnGenSentence');
   if (_genBtn) _genBtn.onclick = async () => {
@@ -6562,57 +6599,6 @@ function bindEvents() {
     } finally {
       _genBtn.disabled = false;
       _genBtn.textContent = oldText;
-    }
-  };
-
-  // ── 智能配图配置 ──
-  const _imgSave = $('#imgApiSave');
-  if (_imgSave) _imgSave.onclick = () => {
-    const p = $('#imgApiProvider').value;
-    const k = ($('#imgApiKey').value || '').trim();
-    localStorage.setItem('lexivault.mobile.imgApi.provider', p);
-    localStorage.setItem('lexivault.mobile.imgApi.key', k);
-    toast('已保存智能配图配置', 'ok');
-    syncImgApiUI();
-  };
-  const _imgTest = $('#imgApiTest');
-  if (_imgTest) _imgTest.onclick = async () => {
-    const statusEl = $('#imgApiStatus');
-    statusEl.className = 'sync-status';
-    statusEl.textContent = '⏳ 正在测试…';
-    try {
-      const p = S.imgApi.provider;
-      if (p === 'loremflickr') {
-        const img = new Image();
-        img.src = `https://loremflickr.com/100/100/dog?random=${Math.random()}`;
-        img.onload = () => {
-          statusEl.className = 'sync-status ok';
-          statusEl.textContent = '✅ LoremFlickr 连接成功';
-        };
-        img.onerror = () => {
-          statusEl.className = 'sync-status err';
-          statusEl.textContent = '❌ LoremFlickr 连接失败';
-        };
-      } else {
-        const k = S.imgApi.key;
-        if (!k) {
-          statusEl.className = 'sync-status err';
-          statusEl.textContent = '❌ 请先保存 API Key';
-          return;
-        }
-        const resp = await fetch(`https://pixabay.com/api/?key=${k}&q=dog&per_page=3&safesearch=true`);
-        const data = await resp.json();
-        if (data.hits && data.hits.length) {
-          statusEl.className = 'sync-status ok';
-          statusEl.textContent = `✅ Pixabay 连接成功（返回 ${data.hits.length} 张图）`;
-        } else {
-          statusEl.className = 'sync-status warn';
-          statusEl.textContent = '⚠️ 返回数据异常，检查 Key 是否正确';
-        }
-      }
-    } catch (err) {
-      statusEl.className = 'sync-status err';
-      statusEl.textContent = '❌ ' + (err.message || err);
     }
   };
 
@@ -6710,20 +6696,6 @@ function bindEvents() {
     });
   });
 
-  // ── 测试环节开关 ──
-  document.querySelectorAll('.stage-btn').forEach(btn => {
-    btn.onclick = () => {
-      const key = btn.dataset.stage;
-      const st = Object.assign({ choice: true, spell: true, reverse: true }, S.settings.testStages || {});
-      st[key] = !st[key];
-      S.settings.testStages = st;
-      saveSettings();
-      refreshStageButtons();
-      renderTestHome();
-      toast(st[key] ? '已开启' : '已关闭', 'ok');
-    };
-  });
-
   // ── 弹窗：点击背景关闭 ──
   document.addEventListener('click', e => {
     if (e.target.classList && e.target.classList.contains('modal') && !e.target.hidden) {
@@ -6777,6 +6749,20 @@ function bindEvents() {
     handle.addEventListener('pointercancel', onUp);
   });
 
+  // ── 设置子弹窗按钮 ──
+  const _btnOpenStage = $('#btnOpenStage');
+  if (_btnOpenStage) _btnOpenStage.onclick = () => openSubModal('stage');
+  const _btnOpenDav = $('#btnOpenDav');
+  if (_btnOpenDav) _btnOpenDav.onclick = () => openSubModal('dav');
+  const _btnOpenApihz = $('#btnOpenApihz');
+  if (_btnOpenApihz) _btnOpenApihz.onclick = () => openSubModal('apihz');
+  const _btnOpenZhipu = $('#btnOpenZhipu');
+  if (_btnOpenZhipu) _btnOpenZhipu.onclick = () => openSubModal('zhipu');
+  const _btnOpenImg = $('#btnOpenImg');
+  if (_btnOpenImg) _btnOpenImg.onclick = () => openSubModal('img');
+  const _btnOpenOverview = $('#btnOpenOverview');
+  if (_btnOpenOverview) _btnOpenOverview.onclick = () => openSubModal('overview');
+
   // ── 手动刷新（绕过缓存，强制加载最新版）──
   const _rBtn = $('#btnRefresh');
   if (_rBtn) {
@@ -6813,9 +6799,9 @@ function bindEvents() {
   const _lmClose = $('#listModalClose');
   if (_lmClose) _lmClose.addEventListener('click', () => { $('#listModal').hidden = true; });
 
-  // ── 数据统计 ──
-  $('#btnStats').addEventListener('click', openStats);
-  $('#statsClose').addEventListener('click', () => { $('#statsModal').hidden = true; });
+  // ── 数据统计（直接用子弹窗展示） ──
+  const _btnStats = $('#btnStats');
+  if (_btnStats) _btnStats.onclick = () => openSubModal('overview');
 
   // ── 设置 ──
   $('#btnSettings').addEventListener('click', openSettings);
@@ -6833,39 +6819,6 @@ function bindEvents() {
     if (f) await importPack(f);
   });
   $('#setClearData').addEventListener('click', clearAllData);
-  // ── 云同步 ──
-  $('#davSave').addEventListener('click', () => {
-    const url  = ($('#davUrl').value  || '').trim();
-    const user = ($('#davUser').value || '').trim();
-    const pass = ($('#davPass').value || '').trim();
-    if (!url || !user || !pass) return toast('三项都要填', 'warn');
-    S.settings.webdav = { url, user, pass };
-    saveSettings();
-    setSyncStatus('✅ 配置已保存', 'ok');
-    toast('配置已保存', 'ok');
-  });
-
-  $('#davTest').addEventListener('click', async () => {
-    const url  = ($('#davUrl').value  || '').trim();
-    const user = ($('#davUser').value || '').trim();
-    const pass = ($('#davPass').value || '').trim();
-    if (!url || !user || !pass) return toast('三项都要填', 'warn');
-    // 先临时设置，让 WebDAV 用新值
-    const backup = S.settings.webdav;
-    S.settings.webdav = { url, user, pass };
-    setSyncStatus('⏳ 正在测试…');
-    try {
-      await WebDAV.testConnection();
-      setSyncStatus('✅ 连接成功，账号密码可用', 'ok');
-      toast('连接成功', 'ok');
-      // 保留配置，用户可能直接想用
-    } catch (e) {
-      S.settings.webdav = backup;   // 失败就还原
-      setSyncStatus('❌ ' + esc(e.message || String(e)), 'err');
-    }
-  });
-
-  $('#davSync').addEventListener('click', syncNow);
 }
 
 /* ══════════════════════════════════════════════

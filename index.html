@@ -1472,6 +1472,54 @@ body.test-mode .word-sheet-panel{
 .toast.out{animation:toastOut .3s var(--ease) forwards}
 @keyframes toastIn{from{opacity:0;transform:translateY(20px) scale(.92)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateY(14px) scale(.94)}}
+
+/* ═══════════ 液态玻璃主题 ═══════════ */
+body.theme-glass {
+  background: linear-gradient(135deg, #1a0b2e, #0f172a, #1e1b4b, #0b132b) !important;
+  background-size: 400% 400% !important;
+  animation: glassBg 15s ease infinite;
+}
+body.theme-glass::before {
+  opacity: 0.4;
+  background: radial-gradient(circle at 20% 30%, rgba(124,92,255,.4), transparent 50%),
+              radial-gradient(circle at 80% 70%, rgba(34,211,238,.4), transparent 50%) !important;
+}
+@keyframes glassBg {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 卡片与弹窗的玻璃质感 */
+body.theme-glass .card,
+body.theme-glass .quiz-card,
+body.theme-glass .modal-box,
+body.theme-glass .topbar,
+body.theme-glass .tabbar,
+body.theme-glass .word-sheet,
+body.theme-glass .test-entry-card {
+  background: rgba(20, 20, 35, 0.45) !important;
+  backdrop-filter: blur(24px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(150%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 输入框与按钮的玻璃感 */
+body.theme-glass .input,
+body.theme-glass .choice-opt,
+body.theme-glass .theme-btn,
+body.theme-glass .set-btn,
+body.theme-glass .spell-img-wrap,
+body.theme-glass .quiz-opt {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+body.theme-glass .topbar,
+body.theme-glass .tabbar {
+  background: rgba(10, 10, 20, 0.65) !important;
+}
+
 </style>
 </head>
 <body>
@@ -1573,7 +1621,7 @@ body.test-mode .word-sheet-panel{
         AI图片生例句
       </button>
       <textarea class="input" id="cwSentence" rows="3"
-                placeholder="英文句子&#10;中文翻译（智谱生成后可手动修改）"
+                placeholder="英文句子（智谱生成后可手动修改）&#10;中文翻译（智谱生成后可手动修改）"
                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                 style="resize:vertical;min-height:72px;font-family:inherit;line-height:1.5"></textarea>
     </div>
@@ -1765,6 +1813,14 @@ body.test-mode .word-sheet-panel{
     <!-- 1. 主题 -->
     <div class="set-section">
       <div class="set-title">🎨 主题</div>
+      
+      <!-- 新增的全宽主题按钮 -->
+      <button class="theme-btn" id="btnOpenTheme" style="width:100%; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+        <span>✨ 选择主题</span>
+        <span id="currentThemeLabel">暗色</span>
+      </button>
+
+      <!-- 原有的并排按钮 -->
       <div class="theme-switch">
         <button class="theme-btn" data-theme="dark">🌙 暗色</button>
         <button class="theme-btn" data-theme="light">☀️ 明亮</button>
@@ -1837,7 +1893,7 @@ body.test-mode .word-sheet-panel{
     </div>
 
     <!-- 6. 概览 -->
-    <button class="btn block lg" id="btnOpenOverview" style="background:#ff4d4f; color:#fff; border:none; margin-top:20px; margin-bottom:20px; font-size:16px; font-weight:700">📊 概览</button>
+    <button class="btn block lg" id="btnOpenOverview" style="background:#ff4d4f; color:#fff; border:none; margin-top:20px; margin-bottom:20px; font-size:16px; font-weight:700"> 概览</button>
 
     <button class="btn block lg" id="settingsClose">关闭</button>
   </div>
@@ -2364,6 +2420,14 @@ const THEMES = {
     glowBAlpha: 0.05,
     glowCAlpha: 0.04,
   },
+  glass: {
+    bg: '#0f172a', surface: '#1e293b', surface2: '#334155',
+    text: '#f8fafc', muted: '#94a3b8',
+    border: 'rgba(255,255,255,.15)',
+    shadow: '0 8px 32px rgba(0,0,0,.4)',
+    overlay: 'rgba(0,0,0,.5)',
+    glowAAlpha: 0.2, glowBAlpha: 0.2, glowCAlpha: 0.1,
+  },
 };
 
 const DEFAULT_SETTINGS = {
@@ -2403,6 +2467,7 @@ function applySettings() {
   r.setProperty('--glow-a', `rgba(${accentRGB},${t.glowAAlpha})`);
   r.setProperty('--glow-b', `rgba(${accent2RGB},${t.glowBAlpha})`);
   r.setProperty('--glow-c', `rgba(${accentRGB},${t.glowCAlpha})`);
+  document.body.classList.toggle('theme-glass', theme === 'glass');
   document.body.style.background = t.bg;
   // ★ 告诉浏览器本页自主管理颜色，禁止强制反色
   document.documentElement.style.colorScheme = (theme === 'light') ? 'light' : 'dark';
@@ -2415,8 +2480,12 @@ function applySettings() {
 function refreshThemeButtons() {
   const cur = S.settings.theme || 'dark';
   document.querySelectorAll('.theme-btn').forEach(b => {
-    b.classList.toggle('on', b.dataset.theme === cur);
+    if (b.dataset.theme) b.classList.toggle('on', b.dataset.theme === cur);
   });
+  const label = document.getElementById('currentThemeLabel');
+  if (label) {
+    label.textContent = cur === 'dark' ? '暗色' : cur === 'light' ? '明亮' : '液态玻璃';
+  }
 }
 const SETTINGS_KEY = 'lexivault.mobile.settings';
 
@@ -2520,7 +2589,26 @@ function openSubModal(type) {
   const body = $('#subModalBody');
   if (!modal || !title || !body) return;
 
-  if (type === 'overview') {
+  if (type === 'theme') {
+    title.textContent = '🎨 选择主题';
+    body.innerHTML = `
+      <div class="theme-switch" style="grid-template-columns:1fr; gap:10px;">
+        <button class="theme-btn ${S.settings.theme === 'glass' ? 'on' : ''}" data-theme="glass">✨ 液态玻璃</button>
+        <button class="theme-btn ${S.settings.theme === 'dark' ? 'on' : ''}" data-theme="dark">🌙 暗色</button>
+        <button class="theme-btn ${S.settings.theme === 'light' ? 'on' : ''}" data-theme="light">☀️ 明亮</button>
+      </div>
+    `;
+    $$('.theme-btn', body).forEach(btn => {
+      btn.onclick = () => {
+        S.settings.theme = btn.dataset.theme;
+        saveSettings();
+        applySettings();
+        refreshThemeButtons();
+        modal.hidden = true;
+        toast('主题已切换', 'ok');
+      };
+    });
+  } else if (type === 'overview') {
     title.textContent = '📊 概览';
     body.innerHTML = `
       <div class="about-row"><span class="k">应用</span><span class="v">LexiVault 移动版</span></div>
@@ -6749,7 +6837,9 @@ function bindEvents() {
     handle.addEventListener('pointercancel', onUp);
   });
 
-  // ── 设置子弹窗按钮 ──
+  // ── 打开子弹窗的按钮 ──
+  const _btnOpenTheme = $('#btnOpenTheme');
+  if (_btnOpenTheme) _btnOpenTheme.onclick = () => openSubModal('theme');
   const _btnOpenStage = $('#btnOpenStage');
   if (_btnOpenStage) _btnOpenStage.onclick = () => openSubModal('stage');
   const _btnOpenDav = $('#btnOpenDav');

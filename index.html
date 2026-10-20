@@ -2146,7 +2146,7 @@ body.theme-glass .modal-box::after{
    ═══════════════════════════════════════════════════════════════ */
 
 const APP_VERSION = '0.1.0';
-const SCHEMA_VERSION = 2;   // ★ 与 PC 版保持一致的 schema 版本号
+const SCHEMA_VERSION = 3;   // ★ 与 PC 版保持一致的 schema 版本号
 
 /* ══════════════════════════════════════════════
    §1  工具函数
@@ -6310,13 +6310,12 @@ function mergeSrs(a, b) {
   const at = a.lastReview || 0;
   const bt = b.lastReview || 0;
 
-  // learnProgress 不论哪边 lastReview 新，都取较大的那个，
-  // 防止「云端学完的进度，被另一台设备的旧进度覆盖」。
-  const ap = (a.learnProgress === undefined) ? null : a.learnProgress;
-  const bp = (b.learnProgress === undefined) ? null : b.learnProgress;
-  const maxProgress = (ap === null) ? bp
-                    : (bp === null) ? ap
-                    : Math.max(ap, bp);
+  // ★ baseRetention 取最大值（学得好的一边胜出），老数据用 learnProgress 兜底
+  const ab = (a.baseRetention !== undefined) ? a.baseRetention
+           : (a.learnProgress !== undefined ? a.learnProgress : 0);
+  const bb = (b.baseRetention !== undefined) ? b.baseRetention
+           : (b.learnProgress !== undefined ? b.learnProgress : 0);
+  const maxRetention = Math.max(ab, bb);
 
   let merged;
   if (bt > at) merged = { ...b };
@@ -6330,9 +6329,8 @@ function mergeSrs(a, b) {
         .slice(-60),
     };
   }
-  if (maxProgress !== null && maxProgress !== undefined) {
-    merged.learnProgress = maxProgress;
-  }
+  merged.baseRetention = maxRetention;
+  merged.learnProgress = maxRetention > 0 ? 1 : 0;   // ★ 归一化
   return merged;
 }
 function mergeWord(local, remote) {
@@ -7279,16 +7277,27 @@ async function boot() {
     S.savedLearnProgress  = loadTestProgress('learn');
     S.savedReviewProgress = loadTestProgress('review');
 
-    // ★ 一次性迁移：把老数据补齐到新模型
+    // ★ 一次性迁移：把老数据补齐到新模型（learnProgress 归一化为 0/1）
     for (const w of S.words) {
       if (!w.srs) continue;
       let changed = false;
-      // 有 learnProgress 但没 baseRetention → 补 baseRetention
+      // 有 learnProgress 但没 baseRetention → 用老答对率当 baseRetention
       if (w.srs.learnProgress !== undefined && w.srs.baseRetention === undefined) {
-        w.srs.baseRetention = w.srs.learnProgress;
+        if (w.srs.learnProgress > 0) {
+          w.srs.baseRetention = w.srs.learnProgress;
+          w.srs.learnProgress = 1;   // 学过 → 归一化 1
+        } else {
+          w.srs.baseRetention = 0;
+          w.srs.learnProgress = 0;
+        }
         changed = true;
       }
-      // 都没记录 → 视为没学过
+      // 有 baseRetention 但 learnProgress 不是 0/1 → 归一化
+      if (w.srs.baseRetention !== undefined && w.srs.learnProgress !== 0 && w.srs.learnProgress !== 1) {
+        w.srs.learnProgress = w.srs.baseRetention > 0 ? 1 : 0;
+        changed = true;
+      }
+      // 完全没记录 → 视为没学过
       if (w.srs.learnProgress === undefined && w.srs.baseRetention === undefined) {
         w.srs.learnProgress = 0;
         w.srs.baseRetention = 0;

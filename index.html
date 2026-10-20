@@ -1775,7 +1775,8 @@ body.theme-glass .modal-box::after{
     <div class="word-list" id="wordList"></div>
     <div class="lib-empty" id="libEmpty" hidden>
       <div class="big">📚</div>
-      词库还是空的<br>去「新建」添加第一个单词吧
+      这里还没有单词<br>
+      <span style="font-size:12.5px">去「新建」页添加第一个，或者用「查词」把词典里的词加进来</span>
     </div>
   </section>
 
@@ -2069,6 +2070,15 @@ body.theme-glass .modal-box::after{
 </div>
 
 <input id="globalImport" type="file" accept=".json,application/json" hidden>
+
+<!-- 导入进度弹窗 -->
+<div id="progressModal" class="modal" hidden>
+  <div class="modal-box" style="max-width:400px">
+    <h3 style="text-align:center;margin-bottom:14px">正在导入…</h3>
+    <div class="sync-progress-bar"><i id="progressFill" style="width:0%"></i></div>
+    <div class="sync-progress-text" id="progressText">准备中…</div>
+  </div>
+</div>
 
 <!-- 退出应用确认框 -->
 <div id="exitAppModal" class="modal" hidden>
@@ -5938,12 +5948,13 @@ function openLibraryDetail(w) {
   $('#wdSpeak').onclick = () => Speech.speak(w.text);
   $('#wdClose').onclick = () => { closeModal('wordDetailModal'); };
   $('#wdEdit').onclick = () => openEditWord(w);
-  $('#wdDelete').onclick = async () => {
-    if (!confirm(`删除「${w.text}」？\n\n如果图片没被其他单词引用，会一并删掉。`)) return;
-    await deleteWordFromLibrary(w);
-    closeModal('wordDetailModal');
-    renderLibrary();
-    toast('已删除', 'ok');
+  $('#wdDelete').onclick = () => {
+    openConfirm('删除单词', `确定删除「${w.text}」？\n\n如果图片没被其他单词引用，会一并删掉。`, async () => {
+      await deleteWordFromLibrary(w);
+      closeModal('wordDetailModal');
+      renderLibrary();
+      toast('已删除', 'ok');
+    });
   };
 }
 
@@ -6217,6 +6228,30 @@ function dataURLToBlob(d) {
   return new Blob([arr], { type: mime });
 }
 
+/* ── 导入进度辅助 ── */
+function showProgress(title) {
+  const modal = document.getElementById('progressModal');
+  if (!modal) return;
+  modal.querySelector('h3').textContent = title || '正在处理…';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressText').textContent = '准备中…';
+  modal.hidden = false;
+  document.body.classList.add('modal-open');
+}
+function updateProgress(cur, total, label) {
+  const fill = document.getElementById('progressFill');
+  const txt = document.getElementById('progressText');
+  if (!fill || !txt) return;
+  const pct = total > 0 ? Math.round(cur / total * 100) : 0;
+  fill.style.width = pct + '%';
+  txt.textContent = label || `${cur} / ${total}`;
+}
+function hideProgress() {
+  const modal = document.getElementById('progressModal');
+  if (modal) modal.hidden = true;
+  document.body.classList.remove('modal-open');
+}
+
 /* ── 导出 ── */
 async function exportData(includeImages) {
   toast('正在打包数据…');
@@ -6331,12 +6366,19 @@ async function importPack(file) {
     }
 
     const stats = { newWords: 0, updatedWords: 0, newImages: 0, newArticles: 0 };
+    const imgTotal = (pack.images || []).length;
+    const showBar = imgTotal > 0;
+    if (showBar) showProgress('正在导入图片…');
 
     // ── 图片先导入（单词要用到 imageId）──
-    if (pack.images && pack.images.length) {
+    if (imgTotal) {
       const existingIds = new Set(S.images.map(i => i.id));
       const newImgs = [];
+      let i = 0;
       for (const im of pack.images) {
+        i++;
+        updateProgress(i, imgTotal, `导入图片 ${i} / ${imgTotal}`);
+        await new Promise(r => setTimeout(r, 0));   // 让浏览器渲染进度条
         if (existingIds.has(im.id)) continue;
         if (!im.data) continue;   // 轻量包不带图
         try {
@@ -6359,6 +6401,7 @@ async function importPack(file) {
         stats.newImages = newImgs.length;
       }
     }
+    if (showBar) hideProgress();
 
     // ── 单词合并 ──
     if (pack.words && pack.words.length) {
@@ -6420,6 +6463,7 @@ async function importPack(file) {
     if (!$('#settingsModal').hidden) openSettings();
 
   } catch (e) {
+    hideProgress();
     console.error('同步失败', e);
     toast('导入失败：' + (e.message || '文件解析错误'), 'err');
   }

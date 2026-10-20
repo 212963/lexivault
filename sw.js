@@ -1,6 +1,5 @@
 /* LexiVault Service Worker
-   HTML/JS/manifest 永远走网络，只缓存图片
-   以后改 index.html 不用再动这个文件 */
+   HTML/JS/manifest 永远走网络，cet4.json 网络优先+缓存，其余静态资源网络优先+缓存 */
 
 self.addEventListener('install', e => {
   e.waitUntil(self.skipWaiting());
@@ -19,6 +18,21 @@ self.addEventListener('fetch', e => {
 
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
+
+  // ★ cet4.json：网络优先 + 缓存一份（忽略查询串，断网时能读到旧副本）
+  if (url.pathname.endsWith('cet4.json')) {
+    const cleanUrl = url.origin + url.pathname;
+    e.respondWith(
+      fetch(req, { cache: 'no-store' }).then(resp => {
+        if (resp && resp.ok) {
+          const copy = resp.clone();
+          caches.open('lexivault-static').then(c => c.put(cleanUrl, copy)).catch(() => {});
+        }
+        return resp;
+      }).catch(() => caches.match(cleanUrl))
+    );
+    return;
+  }
 
   // HTML / JS / manifest.json / 根路径 → 永远走网络，完全不缓存
   if (/\.(html|js|json)$/i.test(url.pathname) || url.pathname.endsWith('/')) {

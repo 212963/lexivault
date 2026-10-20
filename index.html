@@ -1443,6 +1443,21 @@ body.test-mode .word-sheet-panel{
   margin-top:10px;font-size:12px;color:var(--muted);text-align:center;
   font-variant-numeric:tabular-nums;
 }
+.sync-progress-wrap{margin-top:10px}
+.sync-progress-wrap[hidden]{display:none!important}
+.sync-progress-bar{
+  height:6px;border-radius:99px;
+  background:rgba(var(--text-rgb),.08);overflow:hidden;position:relative;
+}
+.sync-progress-bar i{
+  display:block;height:100%;width:0;border-radius:99px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .3s var(--ease);
+}
+.sync-progress-text{
+  font-size:11.5px;color:var(--muted);text-align:center;margin-top:6px;
+  font-variant-numeric:tabular-nums;
+}
 
 /* ═══════════ 智能配图 ═══════════ */
 .smart-grid{
@@ -2366,7 +2381,8 @@ const Dict = (() => {
       })
       .catch(e => {
         console.warn('[LexiVault] 本地词典加载失败', e);
-        _loading = null;   // ★ 清掉，允许下次重试
+        toast('离线词典加载失败，查词会走接口盒子', 'warn');
+        _loading = null;
         _map = null;
         throw e;
       });
@@ -2573,7 +2589,7 @@ const DEFAULT_SETTINGS = {
   srsInit: 0.8, srsGain: 2.2, srsDecay: 0.35,
   theme: 'dark',
   // 测试环节开关（默认全开）
-  testStages: { choice: true, spell: true, reverse: true },
+  testStages: { example: true, 'choice-zh': true, choice: true, 'self-sentence': true, spell: true, reverse: true },
   // 同步相关（阶段 7 使用）
   webdav: { url: '', user: '', pass: '' },
   lastSyncAt: null,
@@ -2810,7 +2826,12 @@ function openSubModal(type) {
         <button class="btn" id="davTest">🔍 测试连接</button>
         <button class="btn primary" id="davSave">💾 保存配置</button>
       </div>
+      <button class="btn block" id="davSyncNow" style="margin-bottom:10px">🔄 立即同步</button>
       <div class="sync-status" id="davStatus">${WebDAV.isConfigured() ? '✅ 已配置' : '未配置'}</div>
+      <div class="sync-progress-wrap" id="davProgressWrap" hidden>
+        <div class="sync-progress-bar"><i id="davProgressFill"></i></div>
+        <div class="sync-progress-text" id="davProgress"></div>
+      </div>
     `;
     $('#davSave').onclick = () => {
       const url = $('#davUrl').value.trim(), user = $('#davUser').value.trim(), pass = $('#davPass').value.trim();
@@ -2836,6 +2857,22 @@ function openSubModal(type) {
         $('#davStatus').textContent = '❌ ' + (e.message || e); $('#davStatus').className = 'sync-status err';
       }
     };
+    // ★ 立即同步按钮
+    const _davSyncNow = $('#davSyncNow');
+    if (_davSyncNow) {
+      _davSyncNow.onclick = async () => {
+        if (!WebDAV.isConfigured()) return toast('三项都要填', 'warn');
+        _davSyncNow.disabled = true;
+        const oldText = _davSyncNow.textContent;
+        _davSyncNow.textContent = '⏳ 同步中…';
+        try {
+          await syncNow();
+        } finally {
+          _davSyncNow.disabled = false;
+          _davSyncNow.textContent = oldText;
+        }
+      };
+    }
   } else if (type === 'apihz') {
     title.textContent = '📚 盒子词典';
     body.innerHTML = `
@@ -3213,6 +3250,7 @@ const T = {
   batchSettled: false,  // ★ 本批次是否已经结算过进度
   spellPendingRetry: false,  // ★ 拼写答错、已显示正确答案，等用户按"完成"重做
   reviewCorrectStages: {},   // ★ 本次复习中，每个词已经答对过的题型 { [wordId]: Set(['choice','choice-zh']) }
+  spellCounted: {},          // ★ 本次学习中，每个词已经计过正确率的拼写题型 { [wordId]: Set(['spell','reverse']) }
 };
 
 let _learnEnterHandler = null;
@@ -3875,6 +3913,7 @@ function startLearn() {
   T.wordPool = session.wordPool;
   T.roundErrMap = {};
   T.batchSettled = false;
+  T.spellCounted = {};
 
   $('#testSetup').hidden = true;
   $('#testRun').hidden = false;
@@ -3926,6 +3965,7 @@ function startReview() {
   T.round = 1;
   T.roundWrong = [];
   T.roundErrMap = {};
+  T.spellCounted = {};
   T.firstRoundTotal = 0;
   T.firstRoundCorrect = 0;
   T.answered = false;
@@ -4333,35 +4373,6 @@ function renderQuestion() {
     $('#btnKnow').onclick = () => { if (!T.answered) finishQuestion(true, w); };
     $('#btnNotKnow').onclick = () => { if (!T.answered) finishQuestion(false, w); };
     setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
-
-  } else if (stage === 'review-choice') {
-    // 复习：看单词 + 图片 → 选 4 个中文意思之一
-    const opts = buildReviewOptions(w);
-    $('#testRun').innerHTML = `
-      <div class="quiz-progress">${progressText}</div>
-      <div class="quiz-card">
-        <div class="quiz-word">${esc(w.text)}</div>
-        ${url ? `<img class="quiz-img" src="${url}" alt="" style="max-height:28vh;margin:10px auto;display:block">` : ''}
-        <div class="choice-grid">
-          ${opts.map((o, i) => `<button class="choice-opt" data-i="${i}" data-correct="${o.correct}">
-            ${o.pos ? `<span class="co-pos">${esc(o.pos)}</span>` : ''}
-            <span class="co-text">${esc(o.text)}</span>
-          </button>`).join('')}
-        </div>
-        <div style="text-align:center;margin-top:12px">
-          <button class="btn" id="btnReviewHint" style="font-size:13.5px;min-height:38px">💡 提示例句</button>
-        </div>
-        <div class="quiz-feedback" id="quizFb"></div>
-      </div>`;
-    $$('.choice-opt').forEach(b => b.onclick = () => {
-      if (T.answered) return;
-      const ok = b.dataset.correct === '1';
-      b.classList.add(ok ? 'ok' : 'bad');
-      if (!ok) $$('.choice-opt').forEach(x => { if (x.dataset.correct === '1') x.classList.add('ok'); });
-      finishQuestion(ok, w);
-    });
-    $('#btnReviewHint').onclick = () => showHintSentence(w, false);
-    setTimeout(() => { if (!T.answered) Speech.speak(w.text); }, 400);
   }
 
   // ★ 给当前题目卡注入顶部工具条（返回 + 详情）
@@ -4439,18 +4450,17 @@ function submitSpell() {
   if (!val) return;
   const ok = val === w.text.toLowerCase();
 
-  // ★ 首轮首次作答才计入正确率：
-  //   - 学习模式：首轮每道拼写题都算一题（不管首答对错）
-  //   - 复习模式：total 已在 startReviewSpell 里定好，这里只补 correct
-  //   - 重试作答（round > 1，或这道题之前已经答错过）一律不再计数
-  const isFirstAttempt = T.round === 1 && !(T.roundErrMap[w.id] > 0);
+  // ★ 每个题型独立计一道题：spell 和 reverse 各算一题
+  const stageKey = task.stage;
+  if (!T.spellCounted[w.id]) T.spellCounted[w.id] = new Set();
+  const counted = T.spellCounted[w.id].has(stageKey);
 
   if (ok) {
-    // 答对：变绿 → 播放音频 → 停 1 秒 → 下一题
     inp.classList.add('ok');
     T.answered = true;
-    if (isFirstAttempt) {
-      if (T.mode === 'learn') T.firstRoundTotal++;
+    if (!counted && T.mode === 'learn') {
+      T.spellCounted[w.id].add(stageKey);
+      T.firstRoundTotal++;
       T.firstRoundCorrect++;
     }
     gradeWord(w, true);
@@ -4460,24 +4470,22 @@ function submitSpell() {
       renderQuestion();
     }, 1000);
   } else {
-    // 答错：变红 + 显示正确答案 + 定格 + 播放音频
     inp.classList.add('bad');
     inp.value = w.text;
     T.spellPendingRetry = true;
-    if (isFirstAttempt && T.mode === 'learn') {
-      T.firstRoundTotal++;   // 学习模式：首答错也算一题
+    if (!counted && T.mode === 'learn') {
+      T.spellCounted[w.id].add(stageKey);
+      T.firstRoundTotal++;
     }
     if (T.round === 1) {
       if (!T.roundErrMap[w.id]) T.roundErrMap[w.id] = {};
-      T.roundErrMap[w.id][task.stage] = true;
+      T.roundErrMap[w.id][stageKey] = true;
     }
-    // ★ 把这个词记进「本轮错词」，批结束后会拉出来重测到全对
     if (!T.roundWrong.some(x => x.id === w.id)) {
       T.roundWrong.push(w);
     }
     gradeWord(w, false);
     Speech.speak(w.text, { force: true });
-    // 不前进，等用户再按"完成"
   }
 }
 function finishQuestion(ok, word) {
@@ -4943,8 +4951,8 @@ function settleBatchProgress() {
     const errCount = Object.keys(errStages).length;
     const base = Math.max(0, 1 - errCount * 0.25);
     if (!w.srs) w.srs = { strength: S.settings.srsInit, lastReview: null, reviews: [] };
-    w.srs.baseRetention = base;      // ★ 初始记忆率
-    w.srs.learnProgress = base;      // 兼容老字段
+    w.srs.baseRetention = base;      // ★ 初始记忆率（可能是 0）
+    w.srs.learnProgress = 1;         // ★ 学过了，固定 1（不再存答对率）
     w.srs.lastReview = now;          // ★ 衰减起点 = 学完那一刻
     w.updatedAt = now;
     DB.put('words', w);
@@ -5101,46 +5109,6 @@ function showRoundBreak(count) {
   setTimeout(() => { $('#roundStartBtn').focus(); }, 60);
 }
 
-/* 复习的选择题阶段结束 → 「全部完成」页 */
-function showReviewSummary() {
-  saveTestProgress();
-  const pool = T.reviewPool || [];
-  const wrong = T.reviewWrong || [];
-  const acc = pool.length
-    ? Math.round((pool.length - wrong.length) / pool.length * 100)
-    : 0;
-  $('#testRun').innerHTML = `
-    <div class="quiz-progress">复习完成</div>
-    <div class="learn-card ok">
-      <div class="lc-badge">🎉 全部过完</div>
-      <div style="text-align:center;padding:16px 0 6px">
-        <div style="font-size:48px;font-weight:800;line-height:1;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent">${acc}%</div>
-        <div style="color:var(--muted);font-size:14px;margin-top:10px">
-          共 ${pool.length} 词 · 答错 ${wrong.length} 词
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;width:100%">
-        <button class="btn primary block lg" id="rvSpellAll">✏️ 拼写全部单词（${pool.length}）</button>
-        <button class="btn block lg" id="rvSpellWrong" ${wrong.length ? '' : 'disabled'}>
-          🔁 拼写错题（${wrong.length}）
-        </button>
-      </div>
-    </div>`;
-
-  if (_learnEnterHandler) {
-    document.removeEventListener('keydown', _learnEnterHandler);
-    _learnEnterHandler = null;
-  }
-  // 回车默认触发「拼写全部」
-  _learnEnterHandler = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); startReviewSpell('all'); }
-  };
-  document.addEventListener('keydown', _learnEnterHandler);
-
-  $('#rvSpellAll').onclick = () => startReviewSpell('all');
-  $('#rvSpellWrong').onclick = () => startReviewSpell('wrong');
-}
-
 /* 拼写检测页：上半"拼写检测"、下半两个按钮 + 右上叉号 */
 function showSpellCheckPage() {
   saveTestProgress();
@@ -5192,6 +5160,7 @@ function startReviewSpell(mode) {
   T.round = 1;
   T.roundWrong = [];
   T.roundErrMap = {};
+  T.spellCounted = {};
   T.firstRoundTotal = T.tasks.length;
   T.firstRoundCorrect = 0;
   T.answered = false;
@@ -5727,7 +5696,7 @@ async function testApiHz() {
   const id = S.apiHz.id;
   const key = S.apiHz.key;
   if (!id || !key) return setStatus('⚠️ 请先填写 ID 和 KEY，然后保存', 'warn');
-  setStatus('⏳ 正在测试…');
+  setStatus('⏳ 正在测试…（会消耗 1 次配额）');
   try {
     const info = await fetchWordInfoFromApiHz('apple');
     if (!info || !info.meanings || !info.meanings.length) {
@@ -6469,8 +6438,23 @@ function setSyncStatus(text, type = 'info') {
   el.innerHTML = text;
 }
 function setSyncProgress(text) {
-  const el = $('#davProgress');
-  if (el) el.textContent = text || '';
+  const wrap = $('#davProgressWrap');
+  const fill = $('#davProgressFill');
+  const txt  = $('#davProgress');
+  if (!wrap || !fill || !txt) return;
+  if (!text) {
+    wrap.hidden = true;
+    fill.style.width = '0%';
+    txt.textContent = '';
+    return;
+  }
+  wrap.hidden = false;
+  txt.textContent = text;
+  const m = text.match(/(\d+)\s*\/\s*(\d+)/);
+  if (m) {
+    const pct = Math.round((+m[1] / +m[2]) * 100);
+    fill.style.width = pct + '%';
+  }
 }
 
 /* 把 data.json 里的「图片元数据」和本地的图片对齐 */
@@ -6783,27 +6767,6 @@ function bindEvents() {
     });
   };
 
-  // ── 接口盒子配置 ──
-  const _ahSave = $('#apiHzSave');
-  if (_ahSave) _ahSave.onclick = () => {
-    const id = ($('#apiHzId').value || '').trim();
-    const key = ($('#apiHzKey').value || '').trim();
-    localStorage.setItem('lexivault.mobile.apiHz.id', id);
-    localStorage.setItem('lexivault.mobile.apiHz.key', key);
-    toast('已保存接口盒子配置', 'ok');
-    syncApiHzUI();
-  };
-  const _ahTest = $('#apiHzTest');
-  if (_ahTest) _ahTest.onclick = testApiHz;
-
-  // ── 智谱 AI 配置 ──
-  const _zpSave = $('#zhipuSave');
-  if (_zpSave) _zpSave.onclick = () => {
-    const key = ($('#zhipuKey').value || '').trim();
-    try { localStorage.setItem('lexivault.mobile.zhipu.key', key); } catch (e) {}
-    toast(key ? '已保存智谱 Key' : '已清空智谱 Key', 'ok');
-    syncZhipuUI();
-  };
   const _zpTest = $('#zhipuTest');
   if (_zpTest) _zpTest.onclick = async () => {
     const statusEl = $('#zhipuStatus');
@@ -6860,57 +6823,6 @@ function bindEvents() {
     } finally {
       _genBtn.disabled = false;
       _genBtn.textContent = oldText;
-    }
-  };
-
-  // ── 智能配图配置 ──
-  const _imgSave = $('#imgApiSave');
-  if (_imgSave) _imgSave.onclick = () => {
-    const p = $('#imgApiProvider').value;
-    const k = ($('#imgApiKey').value || '').trim();
-    localStorage.setItem('lexivault.mobile.imgApi.provider', p);
-    localStorage.setItem('lexivault.mobile.imgApi.key', k);
-    toast('已保存智能配图配置', 'ok');
-    syncImgApiUI();
-  };
-  const _imgTest = $('#imgApiTest');
-  if (_imgTest) _imgTest.onclick = async () => {
-    const statusEl = $('#imgApiStatus');
-    statusEl.className = 'sync-status';
-    statusEl.textContent = '⏳ 正在测试…';
-    try {
-      const p = S.imgApi.provider;
-      if (p === 'loremflickr') {
-        const img = new Image();
-        img.src = `https://loremflickr.com/100/100/dog?random=${Math.random()}`;
-        img.onload = () => {
-          statusEl.className = 'sync-status ok';
-          statusEl.textContent = '✅ LoremFlickr 连接成功';
-        };
-        img.onerror = () => {
-          statusEl.className = 'sync-status err';
-          statusEl.textContent = '❌ LoremFlickr 连接失败';
-        };
-      } else {
-        const k = S.imgApi.key;
-        if (!k) {
-          statusEl.className = 'sync-status err';
-          statusEl.textContent = '❌ 请先保存 API Key';
-          return;
-        }
-        const resp = await fetch(`https://pixabay.com/api/?key=${k}&q=dog&per_page=3&safesearch=true`);
-        const data = await resp.json();
-        if (data.hits && data.hits.length) {
-          statusEl.className = 'sync-status ok';
-          statusEl.textContent = `✅ Pixabay 连接成功（返回 ${data.hits.length} 张图）`;
-        } else {
-          statusEl.className = 'sync-status warn';
-          statusEl.textContent = '⚠️ 返回数据异常，检查 Key 是否正确';
-        }
-      }
-    } catch (err) {
-      statusEl.className = 'sync-status err';
-      statusEl.textContent = '❌ ' + (err.message || err);
     }
   };
 
@@ -7171,7 +7083,7 @@ let _appHLocked = false;    // 拼写题里键盘弹出后是否已锁死
 let _spellLockOn = false;   // 当前是不是拼写题（决定 --app-h 是否锁）
 function initKeyboardWatcher() {
   const root = document.documentElement;
-  const fullH = window.innerHeight;
+  let fullH = window.innerHeight;
   root.style.setProperty('--app-h', fullH + 'px');
 
   const update = () => {
@@ -7197,8 +7109,11 @@ function initKeyboardWatcher() {
   }
   window.addEventListener('orientationchange', () => {
     _appHLocked = false;
-    root.style.setProperty('--app-h', window.innerHeight + 'px');
-    setTimeout(update, 400);
+    setTimeout(() => {
+      fullH = window.innerHeight;                        // ★ 横竖屏切换后重新读高度
+      root.style.setProperty('--app-h', fullH + 'px');
+      update();
+    }, 400);
   });
 }
 

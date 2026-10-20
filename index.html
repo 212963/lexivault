@@ -46,7 +46,7 @@
   --accent2:#22d3ee; --accent2-rgb:34,211,238;
   --bg:#0a0a12; --surface:#14141f; --surface-rgb:20,20,31; --surface2:#1b1b28;
   --text:#eaeaf5; --text-rgb:234,234,245; --muted:#8b8ba7;
-  --radius:16px; --img-radius:14px; --blur:16px; --font-size:16px;
+  --radius:16px; --img-radius:14px; --blur:10px; --font-size:16px;
   --border:rgba(234,234,245,.09);
   --shadow:0 14px 34px -14px rgba(0,0,0,.7);
   --overlay:rgba(0,0,0,.6);
@@ -229,17 +229,22 @@ body.test-mode .quiz-card > .example-sentence{margin-top:auto}
 @keyframes spinIcon{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 
 /* ═══════════ 内容区 ═══════════ */
-.content{position:relative;z-index:1;padding:16px 16px 30px}
+.content{
+  position:relative;z-index:1;padding:16px 16px 30px;
+  -webkit-overflow-scrolling:touch;
+}
 .view{display:none}
-.view.active{display:block;animation:fadeUp .35s var(--ease)}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-
+.view.active{display:block;animation:fadeUp .32s var(--ease)}
+@keyframes fadeUp{
+  from{opacity:0;transform:translate3d(0,10px,0)}
+  to{opacity:1;transform:translate3d(0,0,0)}
+}
 /* ═══════════ 卡片 & 组件 ═══════════ */
 .card{
-  background:rgba(var(--surface-rgb),.78);border:1px solid var(--border);
-  border-radius:var(--radius);padding:18px;backdrop-filter:blur(var(--blur));
-  -webkit-backdrop-filter:blur(var(--blur));box-shadow:var(--shadow);
+  background:rgba(var(--surface-rgb),.88);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);
   margin-bottom:14px;
+  contain: layout style;
 }
 .card h3{font-size:15px;font-weight:650;margin-bottom:6px}
 .card .muted{color:var(--muted);font-size:13px;line-height:1.7}
@@ -251,7 +256,7 @@ body.test-mode .quiz-card > .example-sentence{margin-top:auto}
   cursor:pointer;font-family:inherit;transition:all .2s var(--ease);white-space:nowrap;
   min-height:44px;
 }
-.btn:active{transform:scale(.97);background:rgba(var(--text-rgb),.1)}
+.btn:active{transform:scale(.955);background:rgba(var(--text-rgb),.1)}
 .btn.primary{
   background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;
   box-shadow:0 8px 22px -10px rgba(var(--accent-rgb),1);
@@ -293,6 +298,8 @@ body.test-mode .quiz-card > .example-sentence{margin-top:auto}
 }
 .tab svg{width:22px;height:22px;stroke-width:1.9}
 .tab:active{background:rgba(var(--text-rgb),.04)}
+.tab:active svg{transform:scale(.88)}
+.tab svg{transition:transform .18s var(--ease)}
 .tab.active{color:var(--accent)}
 .tab.active::before{
   content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
@@ -305,13 +312,14 @@ body.test-mode .quiz-card > .example-sentence{margin-top:auto}
 .modal{
   position:fixed;inset:0;z-index:9998;background:var(--overlay);
   display:flex;align-items:flex-end;justify-content:center;
-  backdrop-filter:blur(6px);
   animation:fadeIn .22s var(--ease);
 }
 .modal[hidden]{display:none!important}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .modal-box{
   width:100%;max-width:520px;max-height:85vh;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
   padding:24px 20px calc(24px + var(--safe-bottom));
   background:var(--surface);border:1px solid var(--border);
   border-radius:22px 22px 0 0;
@@ -1029,13 +1037,12 @@ body.test-mode .word-sheet-panel{
   display:flex;flex-direction:column;align-items:center;
   padding:26px 16px 20px;
   border-radius:24px;
-  background:rgba(var(--surface-rgb),.78);
+  background:rgba(var(--surface-rgb),.9);
   border:1px solid var(--border);
-  backdrop-filter:blur(var(--blur));
-  -webkit-backdrop-filter:blur(var(--blur));
   box-shadow:var(--shadow);
   margin-bottom:16px;
   overflow:hidden;
+  contain: layout style;
 }
 .ring-card::before{
   content:'';position:absolute;inset:0;pointer-events:none;
@@ -1117,14 +1124,13 @@ body.test-mode .word-sheet-panel{
 .test-entry-card{
   position:relative;padding:22px 18px;border-radius:20px;
   border:1px solid var(--border);
-  background:rgba(var(--surface-rgb),.78);
-  backdrop-filter:blur(var(--blur));
-  -webkit-backdrop-filter:blur(var(--blur));
+  background:rgba(var(--surface-rgb),.9);
   cursor:pointer;text-align:left;font-family:inherit;color:var(--text);
-  transition:all .22s var(--ease);
+  transition:transform .2s var(--ease),border-color .2s var(--ease);
   min-height:170px;
   display:flex;flex-direction:column;justify-content:flex-end;
   overflow:hidden;box-shadow:var(--shadow);
+  contain: layout style;
 }
 .test-entry-card::before{
   content:'';position:absolute;inset:0;pointer-events:none;
@@ -1374,6 +1380,7 @@ body.test-mode .word-sheet-panel{
      100px 是每个词条的估算高度，用来占位，避免滚动时跳动。 */
   content-visibility:auto;
   contain-intrinsic-size:0 100px;
+  contain: layout style paint;
 }
 .word-item:active{transform:scale(.98);border-color:rgba(var(--accent-rgb),.5)}
 .wi-img{
@@ -1495,12 +1502,22 @@ body.test-mode .word-sheet-panel{
 .toast.warn{border-color:rgba(255,180,60,.4);color:#ffb43c}
 .toast.err{border-color:rgba(255,107,129,.4);color:#ff6b81}
 .toast.out{animation:toastOut .3s var(--ease) forwards}
-@keyframes toastIn{from{opacity:0;transform:translateY(20px) scale(.92)}to{opacity:1;transform:none}}
-@keyframes toastOut{to{opacity:0;transform:translateY(14px) scale(.94)}}
+@keyframes toastIn{from{opacity:0;transform:translate3d(0,20px,0) scale(.92)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+@keyframes toastOut{to{opacity:0;transform:translate3d(0,14px,0) scale(.94)}}
+
+/* ★ 尊重系统"减少动态效果"设置：用户开了之后所有动画秒完成 */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+  }
+}
+</style>
 
 /* ═══════════ 透明玻璃主题（墨绿磨砂玻璃） ═══════════ */
 body.theme-glass{
-  --blur:32px;
+  --blur:12px;
 }
 
 /* 环境光晕：墨绿 + 青绿，替换默认的紫青 */
@@ -1524,9 +1541,7 @@ body.theme-glass .lk-card,
 body.theme-glass .resume-banner,
 body.theme-glass .modal-box,
 body.theme-glass .word-sheet{
-  background:rgba(18,36,28,.42) !important;
-  backdrop-filter:blur(32px) saturate(180%);
-  -webkit-backdrop-filter:blur(32px) saturate(180%);
+  background:rgba(18,36,28,.52) !important;
   border-color:rgba(160,255,200,.14) !important;
   box-shadow:
     0 22px 48px -20px rgba(0,0,0,.65),
@@ -1546,9 +1561,7 @@ body.theme-glass .tabbar{
 
 /* 弹窗底板：更实，内容清楚 */
 body.theme-glass .modal-box{
-  background:rgba(14,30,24,.88) !important;
-  backdrop-filter:blur(40px) saturate(190%);
-  -webkit-backdrop-filter:blur(40px) saturate(190%);
+  background:rgba(14,30,24,.94) !important;
 }
 
 /* 底部抽屉详情：稍实 */
@@ -5870,7 +5883,7 @@ function renderLibrary() {
     const pct = Math.round(p * 100) + '%';
     const meanings = getMeanings(w);
     const meanText = meanings.length ? meaningsToString(meanings) : '— 暂无释义 —';
-    return `<div class="word-item" data-id="${w.id}" style="animation-delay:${Math.min(i * 18, 300)}ms">
+    return `<div class="word-item" data-id="${w.id}" style="${i < 12 ? `animation-delay:${i * 20}ms` : 'animation:none'}">
       <div class="wi-img">
         ${url ? `<img src="${url}" alt="" loading="lazy">` : `<div class="no-img">无图</div>`}
       </div>

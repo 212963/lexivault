@@ -1741,139 +1741,134 @@ body.theme-deepseek .lib-empty .big::before {
 }
 body.theme-deepseek .lib-empty .big { font-size: 0; }
 
-/* ═══════════ ⚡ 极速闪击（赛博风） ═══════════ */
+/* ═══════════ ⚡ 极速闪击（极简主题自适应版） ═══════════ */
 .game-run {
   position: fixed; inset: 0; z-index: 9999;
-  background: #050510;
+  background: var(--bg);
   display: flex; flex-direction: column;
   overflow: hidden;
-  /* 科技网格背景 */
-  background-image: 
-    linear-gradient(rgba(124, 92, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(124, 92, 255, 0.05) 1px, transparent 1px);
-  background-size: 30px 30px;
 }
-
-/* 全屏闪光遮罩（答对绿/答错红） */
-.game-flash {
-  position: absolute; inset: 0; pointer-events: none;
-  opacity: 0; transition: opacity 0.15s ease-out; z-index: 1;
-}
-.game-flash.flash-green { background: rgba(61,220,151,0.3); opacity: 1; transition: none; }
-.game-flash.flash-red { background: rgba(255,107,129,0.4); opacity: 1; transition: none; }
 
 /* 倒计时警告：整个屏幕边缘红光心跳 */
 .game-run.game-danger { animation: dangerPulse 1s infinite alternate; }
 @keyframes dangerPulse {
-  0% { box-shadow: inset 0 0 40px rgba(255,107,129,0.2); }
-  100% { box-shadow: inset 0 0 100px rgba(255,107,129,0.6); }
+  0% { box-shadow: inset 0 0 30px rgba(255,77,79,0.1); }
+  100% { box-shadow: inset 0 0 80px rgba(255,77,79,0.4); }
 }
 
+/* 顶部三栏：时间(大) - 连击 - 分数(小) */
 .game-header {
   display: flex; justify-content: space-between; align-items: flex-start;
   padding: calc(var(--safe-top) + 20px) 24px 0;
   z-index: 2;
 }
-.g-timer-wrap, .g-score-wrap { display: flex; flex-direction: column; align-items: center; }
-.g-timer { font-size: 44px; font-weight: 900; color: #fff; line-height: 1; text-shadow: 0 0 20px rgba(255,255,255,0.4); }
-.game-danger .g-timer { color: #ff6b81; text-shadow: 0 0 30px rgba(255,107,129,0.8); }
-.g-score { font-size: 32px; font-weight: 800; color: #a78bfa; line-height: 1; text-shadow: 0 0 15px rgba(124,92,255,0.6); }
-.g-label { font-size: 10px; font-weight: 800; color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
+.g-timer-wrap, .g-score-wrap, .g-combo-wrap { 
+  display: flex; flex-direction: column; align-items: center; 
+  transition: opacity 0.3s var(--ease);
+}
+.g-timer { 
+  font-size: 52px; font-weight: 900; color: var(--text); line-height: 1; 
+  font-variant-numeric: tabular-nums;
+}
+.game-danger .g-timer { color: #ff4d4f; text-shadow: 0 0 20px rgba(255,77,79,0.5); }
+
+.g-score { 
+  font-size: 32px; font-weight: 800; color: var(--accent); line-height: 1; 
+  font-variant-numeric: tabular-nums;
+}
+.g-combo-num { 
+  font-size: 40px; font-weight: 900; line-height: 1;
+  background: linear-gradient(180deg, var(--text), var(--accent));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.g-label { 
+  font-size: 10px; font-weight: 800; color: var(--muted); 
+  letter-spacing: 2px; margin-top: 6px; 
+}
+
+/* 连击弹跳动画 */
+@keyframes comboPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); filter: brightness(1.5); }
+  100% { transform: scale(1); }
+}
 
 .game-center {
   flex: 1; display: flex; align-items: center; justify-content: center;
   z-index: 2;
 }
 .g-word {
-  font-size: 64px; font-weight: 900; color: #fff;
-  text-shadow: 0 0 30px rgba(34,211,238,0.6);
-  animation: wordDrop 0.3s ease-out;
-  max-width: 90%;                 /* ★ 限制最大宽度 */
-  text-align: center;             /* ★ 居中 */
-  word-break: break-word;         /* ★ 极端超长词自动折行 */
-  line-height: 1.1;
+  font-size: 64px; font-weight: 900; color: var(--text);
+  animation: wordDrop 0.3s var(--ease);
+  max-width: 90%; text-align: center;
+  word-break: break-word; line-height: 1.1;
 }
 @keyframes wordDrop {
-  from { transform: scale(1.2) translateY(-20px); opacity: 0; filter: blur(4px); }
+  from { transform: scale(1.1) translateY(-15px); opacity: 0; filter: blur(4px); }
   to { transform: scale(1) translateY(0); opacity: 1; filter: blur(0); }
 }
 
+/* 选项列表重做：现代徽章质感 */
 .game-options {
   padding: 0 20px calc(var(--safe-bottom) + 30px);
   display: grid; grid-template-columns: 1fr; gap: 12px;
   z-index: 2;
 }
-
-/* 游戏内的选项样式 */
 .game-options .choice-opt {
-  background: rgba(20, 20, 35, 0.8);
-  border: 2px solid rgba(124, 92, 255, 0.2);
-  min-height: 60px; display: flex; align-items: center; justify-content: center;
-  transition: all 0.1s;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  background: rgba(var(--surface-rgb), 0.85);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  min-height: 64px;
+  display: flex; align-items: center; justify-content: flex-start;
+  padding: 0 20px;
+  transition: all 0.15s var(--ease);
+  box-shadow: var(--shadow);
+  color: var(--text);
 }
-.game-options .choice-opt:active { transform: scale(0.95); }
+.game-options .choice-opt:active { transform: scale(0.97); }
+
+.g-opt-idx {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.15); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px; margin-right: 14px; flex-shrink: 0;
+}
 .game-options .choice-opt.ok {
-  border-color: #3ddc97; box-shadow: 0 0 30px rgba(61,220,151,0.4); background: rgba(61,220,151,0.15);
+  border-color: #3ddc97; background: rgba(61,220,151,0.12);
 }
+.game-options .choice-opt.ok .g-opt-idx { background: #3ddc97; color: #fff; }
 .game-options .choice-opt.bad {
-  border-color: #ff6b81; box-shadow: 0 0 30px rgba(255,107,129,0.4); background: rgba(255,107,129,0.15);
+  border-color: #ff6b81; background: rgba(255,107,129,0.12);
 }
-
-/* 连击巨大数字冲击波（全屏蒙版特写版） */
-.g-combo-layer {
-  position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; pointer-events: none; z-index: 10;
-  background: rgba(5, 5, 16, 0.75);          /* ★ 全屏半透明暗色蒙版 */
-  backdrop-filter: blur(4px);                /* ★ 轻微毛玻璃，模糊底下的单词 */
-  opacity: 0;
-}
-.g-combo-num {
-  font-size: 160px; font-weight: 900; line-height: 1;
-  background: linear-gradient(180deg, #fff, #a78bfa, #22d3ee);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 0 30px rgba(124,92,255,0.9));
-  transform: scale(0.5);
-}
-.g-combo-txt {
-  font-size: 28px; font-weight: 900; letter-spacing: 12px; color: #a78bfa;
-  text-shadow: 0 0 15px rgba(167,139,250,0.8);
-  margin-top: 10px;
-  transform: scale(0.5);
-}
-/* 蒙版和数字同时触发动画 */
-.combo-blast {
-  animation: comboMaskAnim 0.65s ease forwards;
-}
-.combo-blast .g-combo-num,
-.combo-blast .g-combo-txt {
-  animation: comboNumAnim 0.65s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
-}
-
-@keyframes comboMaskAnim {
-  0% { opacity: 0; }
-  15% { opacity: 1; }
-  80% { opacity: 1; }
-  100% { opacity: 0; }
-}
-@keyframes comboNumAnim {
-  0% { transform: scale(1.5); opacity: 0; filter: blur(4px); }
-  20% { transform: scale(1); opacity: 1; filter: blur(0); }
-  80% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0; }
-}
+.game-options .choice-opt.bad .g-opt-idx { background: #ff6b81; color: #fff; }
 
 /* 结算界面 */
 .game-result {
   position: fixed; inset: 0; z-index: 9999;
-  background: #050510; display: flex; flex-direction: column;
+  background: var(--bg); display: flex; flex-direction: column;
   align-items: center; justify-content: center;
 }
-.g-res-title { font-size: 36px; font-weight: 900; color: #fff; text-shadow: 0 0 20px #124cff; margin-bottom: 40px; }
-.g-res-box { background: rgba(20,20,35,0.8); border: 1px solid rgba(124,92,255,0.3); border-radius: 24px; padding: 30px; width: 80%; text-align: center; }
-.g-res-label { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: 2px; }
-.g-res-score { font-size: 72px; font-weight: 900; color: #a78bfa; line-height: 1; margin-bottom: 20px; text-shadow: 0 0 30px rgba(167,139,250,0.5); }
-.g-res-combo { font-size: 48px; font-weight: 900; color: #22d3ee; line-height: 1; text-shadow: 0 0 30px rgba(34,211,238,0.5); }
+.g-res-title { 
+  font-size: 32px; font-weight: 800; color: var(--text); 
+  margin-bottom: 30px; letter-spacing: 1px;
+}
+.g-res-box { 
+  background: rgba(var(--surface-rgb), 0.8); 
+  border: 1px solid var(--border); 
+  border-radius: 24px; padding: 30px; width: 80%; text-align: center; 
+  box-shadow: var(--shadow);
+}
+.g-res-label { 
+  font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: 2px; 
+}
+.g-res-score { 
+  font-size: 72px; font-weight: 900; color: var(--accent); line-height: 1; margin-bottom: 20px; 
+  font-variant-numeric: tabular-nums;
+}
+.g-res-combo { 
+  font-size: 48px; font-weight: 900; color: var(--accent2); line-height: 1; 
+  font-variant-numeric: tabular-nums;
+}
 </style>
 </head>
 <body>
@@ -2115,9 +2110,13 @@ body.theme-deepseek .lib-empty .big { font-size: 0; }
     <div id="gameRun" hidden class="game-run">
       <div class="game-flash" id="gFlash"></div>
       <div class="game-header">
-        <div class="g-timer-wrap" id="gTimerWrap">
+        <div class="g-timer-wrap">
           <div class="g-timer" id="gTime">60</div>
-          <div class="g-label">SECONDS</div>
+          <div class="g-label">TIME</div>
+        </div>
+        <div class="g-combo-wrap" id="gComboWrap">
+          <div class="g-combo-num" id="gComboNum">0</div>
+          <div class="g-label">COMBO</div>
         </div>
         <div class="g-score-wrap">
           <div class="g-score" id="gScore">0</div>
@@ -2130,12 +2129,6 @@ body.theme-deepseek .lib-empty .big { font-size: 0; }
       </div>
       
       <div class="game-options" id="gOptions"></div>
-      
-      <!-- 连击全屏大数字 -->
-      <div class="g-combo-layer" id="gComboLayer" hidden>
-        <div class="g-combo-num" id="gComboNum">0</div>
-        <div class="g-combo-txt">COMBO</div>
-      </div>
     </div>
 
     <!-- 游戏结算界面 -->
@@ -7029,8 +7022,7 @@ const G = {
   maxCombo: 0,
   timer: null,
   currentWord: null,
-  answered: false,
-  flashTimeout: null
+  answered: false
 };
 
 function startGame() {
@@ -7044,7 +7036,7 @@ function startGame() {
   
   $('#gTime').textContent = G.time;
   $('#gScore').textContent = G.score;
-  $('#gComboLayer').hidden = true;
+  $('#gComboWrap').style.opacity = '0';
   
   $('#testSetup').hidden = true;
   $('#gameResult').hidden = true;
@@ -7075,15 +7067,6 @@ function startGame() {
   nextGameQuestion();
 }
 
-function triggerFlash(colorClass) {
-  const flash = $('#gFlash');
-  flash.className = 'game-flash ' + colorClass;
-  clearTimeout(G.flashTimeout);
-  G.flashTimeout = setTimeout(() => {
-    flash.className = 'game-flash';
-  }, 50);
-}
-
 function nextGameQuestion() {
   if (G.time <= 0) return;
   G.answered = false;
@@ -7109,11 +7092,12 @@ function nextGameQuestion() {
   void wordEl.offsetWidth;
   wordEl.style.animation = 'wordDrop 0.3s ease-out';
   
-  // 生成选项（复用现有的复习选项生成器）
+  // 生成选项（带上字母索引）
   const opts = buildReviewOptions(w);
-  $('#gOptions').innerHTML = opts.map((o) => `
+  $('#gOptions').innerHTML = opts.map((o, i) => `
     <button class="choice-opt" data-correct="${o.correct}">
-      <span class="co-text" style="font-size:20px;">${esc(o.text)}</span>
+      <span class="g-opt-idx">${String.fromCharCode(65 + i)}</span>
+      <span class="co-text" style="font-size:20px; font-weight:700;">${esc(o.text)}</span>
     </button>
   `).join('');
   
@@ -7129,7 +7113,6 @@ function handleGameAnswer(btn, ok) {
   if (ok) {
     // ── 答对 ──
     btn.classList.add('ok');
-    triggerFlash('flash-green');
     
     G.combo++;
     if (G.combo > G.maxCombo) G.maxCombo = G.combo;
@@ -7142,29 +7125,21 @@ function handleGameAnswer(btn, ok) {
     $('#gScore').textContent = G.score;
     $('#gTime').textContent = G.time;
     
-    // 连击全屏爆炸特效
+    // 顶部连击跳动特效
     if (G.combo >= 2) {
-      const layer = $('#gComboLayer');
+      const wrap = $('#gComboWrap');
       const num = $('#gComboNum');
       num.textContent = G.combo;
-      layer.hidden = false;
-      layer.className = 'g-combo-layer'; // 重置
-      void layer.offsetWidth; // 触发重绘
-      layer.classList.add('combo-blast');
+      wrap.style.opacity = '1';
       
-      // ★ 动画播完自动隐藏，避免透明蒙版挡住后续点击
-      layer.onanimationend = () => {
-        layer.hidden = true;
-        layer.onanimationend = null;
-      };
+      num.style.animation = 'none';
+      void num.offsetWidth; // 触发重绘
+      num.style.animation = 'comboPop 0.25s var(--ease)';
     }
-    
-    // （已移除连击语音）
     
   } else {
     // ── 答错 ──
     btn.classList.add('bad');
-    triggerFlash('flash-red');
     
     // 显示正确答案
     $$('#gOptions .choice-opt').forEach(x => {
@@ -7174,9 +7149,10 @@ function handleGameAnswer(btn, ok) {
     G.combo = 0;
     G.time = Math.max(0, G.time - 3); // 扣 3 秒
     $('#gTime').textContent = G.time;
+    $('#gComboWrap').style.opacity = '0'; // 隐藏连击
     
-    // 屏幕震动
-    if (navigator.vibrate) navigator.vibrate(100);
+    // 轻微震动代替闪屏
+    if (navigator.vibrate) navigator.vibrate(80);
   }
   
   // 停顿后下一题（答错留时间看答案）

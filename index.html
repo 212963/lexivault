@@ -1741,29 +1741,117 @@ body.theme-deepseek .lib-empty .big::before {
 }
 body.theme-deepseek .lib-empty .big { font-size: 0; }
 
-/* ═══════════ ⚡ 极速狂飙 ═══════════ */
-body.test-mode #view-test:has(#gameRun:not([hidden])) #testSetup { display:none !important; }
-.game-entry {
-  background: linear-gradient(135deg, rgba(255,180,60,.1), rgba(255,107,129,.1)) !important;
-  border-color: rgba(255,180,60,.4) !important;
-}
-.game-entry:active { transform: scale(.98); }
-
-/* 连击特效 */
-.combo-pop {
-  animation: comboPop 0.3s cubic-bezier(.22,1,.36,1);
-}
-@keyframes comboPop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.4); filter: brightness(1.5); }
-  100% { transform: scale(1); }
+/* ═══════════ ⚡ 极速闪击（赛博风） ═══════════ */
+.game-run {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #050510;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  /* 科技网格背景 */
+  background-image: 
+    linear-gradient(rgba(124, 92, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 92, 255, 0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
 }
 
-/* 选错扣时间时的红光 */
-.game-shake {
-  animation: shake 0.4s;
-  background: rgba(255,107,129,.1) !important;
+/* 全屏闪光遮罩（答对绿/答错红） */
+.game-flash {
+  position: absolute; inset: 0; pointer-events: none;
+  opacity: 0; transition: opacity 0.15s ease-out; z-index: 1;
 }
+.game-flash.flash-green { background: rgba(61,220,151,0.3); opacity: 1; transition: none; }
+.game-flash.flash-red { background: rgba(255,107,129,0.4); opacity: 1; transition: none; }
+
+/* 倒计时警告：整个屏幕边缘红光心跳 */
+.game-run.game-danger { animation: dangerPulse 1s infinite alternate; }
+@keyframes dangerPulse {
+  0% { box-shadow: inset 0 0 40px rgba(255,107,129,0.2); }
+  100% { box-shadow: inset 0 0 100px rgba(255,107,129,0.6); }
+}
+
+.game-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: calc(var(--safe-top) + 20px) 24px 0;
+  z-index: 2;
+}
+.g-timer-wrap, .g-score-wrap { display: flex; flex-direction: column; align-items: center; }
+.g-timer { font-size: 44px; font-weight: 900; color: #fff; line-height: 1; text-shadow: 0 0 20px rgba(255,255,255,0.4); }
+.game-danger .g-timer { color: #ff6b81; text-shadow: 0 0 30px rgba(255,107,129,0.8); }
+.g-score { font-size: 32px; font-weight: 800; color: #a78bfa; line-height: 1; text-shadow: 0 0 15px rgba(124,92,255,0.6); }
+.g-label { font-size: 10px; font-weight: 800; color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
+
+.game-center {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+}
+.g-word {
+  font-size: 64px; font-weight: 900; color: #fff;
+  text-shadow: 0 0 30px rgba(34,211,238,0.6);
+  animation: wordDrop 0.3s ease-out;
+}
+@keyframes wordDrop {
+  from { transform: scale(1.2) translateY(-20px); opacity: 0; filter: blur(4px); }
+  to { transform: scale(1) translateY(0); opacity: 1; filter: blur(0); }
+}
+
+.game-options {
+  padding: 0 20px calc(var(--safe-bottom) + 30px);
+  display: grid; grid-template-columns: 1fr; gap: 12px;
+  z-index: 2;
+}
+
+/* 游戏内的选项样式 */
+.game-options .choice-opt {
+  background: rgba(20, 20, 35, 0.8);
+  border: 2px solid rgba(124, 92, 255, 0.2);
+  min-height: 60px; display: flex; align-items: center; justify-content: center;
+  transition: all 0.1s;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+.game-options .choice-opt:active { transform: scale(0.95); }
+.game-options .choice-opt.ok {
+  border-color: #3ddc97; box-shadow: 0 0 30px rgba(61,220,151,0.4); background: rgba(61,220,151,0.15);
+}
+.game-options .choice-opt.bad {
+  border-color: #ff6b81; box-shadow: 0 0 30px rgba(255,107,129,0.4); background: rgba(255,107,129,0.15);
+}
+
+/* 连击巨大数字冲击波 */
+.g-combo-layer {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; pointer-events: none; z-index: 10;
+}
+.g-combo-num {
+  font-size: 160px; font-weight: 900; line-height: 1;
+  background: linear-gradient(180deg, #fff, #a78bfa, #22d3ee);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 20px rgba(124,92,255,0.8));
+}
+.g-combo-txt {
+  font-size: 24px; font-weight: 900; letter-spacing: 8px; color: #a78bfa;
+  text-shadow: 0 0 10px rgba(167,139,250,0.8);
+}
+.combo-blast {
+  animation: comboBlast 0.5s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+}
+@keyframes comboBlast {
+  0% { transform: scale(2); opacity: 0; filter: blur(10px); }
+  20% { transform: scale(1); opacity: 1; filter: blur(0); }
+  80% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.8); opacity: 0; }
+}
+
+/* 结算界面 */
+.game-result {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #050510; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.g-res-title { font-size: 36px; font-weight: 900; color: #fff; text-shadow: 0 0 20px #124cff; margin-bottom: 40px; }
+.g-res-box { background: rgba(20,20,35,0.8); border: 1px solid rgba(124,92,255,0.3); border-radius: 24px; padding: 30px; width: 80%; text-align: center; }
+.g-res-label { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: 2px; }
+.g-res-score { font-size: 72px; font-weight: 900; color: #a78bfa; line-height: 1; margin-bottom: 20px; text-shadow: 0 0 30px rgba(167,139,250,0.5); }
+.g-res-combo { font-size: 48px; font-weight: 900; color: #22d3ee; line-height: 1; text-shadow: 0 0 30px rgba(34,211,238,0.5); }
 </style>
 </head>
 <body>
@@ -1994,38 +2082,50 @@ body.test-mode #view-test:has(#gameRun:not([hidden])) #testSetup { display:none 
         </button>
       </div>
 
-      <!-- ★ 新增：极速狂飙入口 -->
-      <button type="button" class="test-entry-card game-entry" id="btnStartGame" style="margin-top:12px; width:100%; min-height:90px;">
-        <div class="te-label" style="color:#ffb43c">⚡ 极速狂飙</div>
-        <div class="te-sub" style="color:#ffb43c; opacity:0.8">限时 60 秒，答对加时间，连击拿高分！</div>
+      <!-- ⚡ 极速狂飙入口 -->
+      <button type="button" class="test-entry-card game-entry" id="btnStartGame" style="margin-top:12px; width:100%; min-height:90px; background:linear-gradient(135deg, rgba(124,92,255,.15), rgba(34,211,238,.15)) !important; border-color:rgba(124,92,255,.4) !important;">
+        <div class="te-label" style="color:#a78bfa; text-shadow:0 0 10px rgba(124,92,255,.5);">⚡ 极速闪击</div>
+        <div class="te-sub" style="color:#e0e0e0; opacity:0.8">60秒极限挑战，连击全屏暴走！</div>
       </button>
     </div>
 
-    <!-- ★ 新增：游戏进行中界面 -->
-    <div id="gameRun" hidden style="display:flex; flex-direction:column; height:var(--app-h); padding: calc(var(--safe-top) + 8px) 16px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0 20px;">
-        <div style="font-size:20px; font-weight:800; color:#ffb43c">时间: <span id="gTime">60</span>s</div>
-        <div style="font-size:20px; font-weight:800; color:var(--text)">得分: <span id="gScore">0</span></div>
-        <div id="gComboWrap" style="font-size:20px; font-weight:800; color:var(--accent2); opacity:0; transition:all 0.2s;">
-          连击: <span id="gCombo">0</span>
+    <!-- 游戏进行中（全屏接管） -->
+    <div id="gameRun" hidden class="game-run">
+      <div class="game-flash" id="gFlash"></div>
+      <div class="game-header">
+        <div class="g-timer-wrap" id="gTimerWrap">
+          <div class="g-timer" id="gTime">60</div>
+          <div class="g-label">SECONDS</div>
+        </div>
+        <div class="g-score-wrap">
+          <div class="g-score" id="gScore">0</div>
+          <div class="g-label">SCORE</div>
         </div>
       </div>
-      <div class="game-word-wrap" style="flex:1; display:flex; align-items:center; justify-content:center;">
-        <div class="quiz-word" id="gWord" style="font-size:48px;">word</div>
+      
+      <div class="game-center">
+        <div class="g-word" id="gWord">word</div>
       </div>
-      <div class="choice-grid" id="gOptions" style="padding-bottom:30px;"></div>
+      
+      <div class="game-options" id="gOptions"></div>
+      
+      <!-- 连击全屏大数字 -->
+      <div class="g-combo-layer" id="gComboLayer" hidden>
+        <div class="g-combo-num" id="gComboNum">0</div>
+        <div class="g-combo-txt">COMBO</div>
+      </div>
     </div>
 
-    <!-- ★ 新增：游戏结算界面 -->
-    <div id="gameResult" hidden style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:var(--app-h); padding:20px;">
-      <div style="font-size:32px; font-weight:800; color:#ffb43c; margin-bottom:20px;">⚡ 挑战结束</div>
-      <div class="card" style="width:100%; text-align:center; padding:30px 20px;">
-        <div style="font-size:14px; color:var(--muted); margin-bottom:8px;">最终得分</div>
-        <div style="font-size:64px; font-weight:800; line-height:1; color:var(--text); margin-bottom:20px;" id="gFinalScore">0</div>
-        <div style="font-size:14px; color:var(--muted); margin-bottom:8px;">最高连击</div>
-        <div style="font-size:32px; font-weight:800; color:var(--accent2); margin-bottom:10px;" id="gFinalCombo">0</div>
+    <!-- 游戏结算界面 -->
+    <div id="gameResult" hidden class="game-result">
+      <div class="g-res-title">⚡ 挑战结束</div>
+      <div class="g-res-box">
+        <div class="g-res-label">最终得分</div>
+        <div class="g-res-score" id="gFinalScore">0</div>
+        <div class="g-res-label">最高连击</div>
+        <div class="g-res-combo" id="gFinalCombo">0</div>
       </div>
-      <button class="btn primary block lg" id="gCloseBtn" style="margin-top:30px;">返回</button>
+      <button class="btn primary block lg" id="gCloseBtn" style="width:80%; margin-top:30px;">返回</button>
     </div>
 
     <!-- 测试进行中 -->
@@ -6907,7 +7007,8 @@ const G = {
   maxCombo: 0,
   timer: null,
   currentWord: null,
-  answered: false
+  answered: false,
+  flashTimeout: null
 };
 
 function startGame() {
@@ -6921,26 +7022,39 @@ function startGame() {
   
   $('#gTime').textContent = G.time;
   $('#gScore').textContent = G.score;
-  $('#gCombo').textContent = G.combo;
-  $('#gComboWrap').style.opacity = '0';
+  $('#gComboLayer').hidden = true;
   
   $('#testSetup').hidden = true;
   $('#gameResult').hidden = true;
   $('#gameRun').hidden = false;
-  document.body.classList.add('test-mode');
+  $('#gameRun').classList.remove('game-danger');
   
   // 倒计时
   if (G.timer) clearInterval(G.timer);
   G.timer = setInterval(() => {
+    G.time--;
+    $('#gTime').textContent = G.time;
+    
+    // 最后 10 秒开启全屏警告心跳
+    if (G.time <= 10) {
+      $('#gameRun').classList.add('game-danger');
+    }
+    
     if (G.time <= 0) {
       endGame();
-    } else {
-      G.time--;
-      $('#gTime').textContent = G.time;
     }
   }, 1000);
   
   nextGameQuestion();
+}
+
+function triggerFlash(colorClass) {
+  const flash = $('#gFlash');
+  flash.className = 'game-flash ' + colorClass;
+  clearTimeout(G.flashTimeout);
+  G.flashTimeout = setTimeout(() => {
+    flash.className = 'game-flash';
+  }, 50);
 }
 
 function nextGameQuestion() {
@@ -6950,14 +7064,19 @@ function nextGameQuestion() {
   // 随机抽一个词
   const w = S.words[Math.floor(Math.random() * S.words.length)];
   G.currentWord = w;
-  $('#gWord').textContent = w.text;
+  
+  const wordEl = $('#gWord');
+  wordEl.textContent = w.text;
+  // 重置掉入场动画
+  wordEl.style.animation = 'none';
+  void wordEl.offsetWidth;
+  wordEl.style.animation = 'wordDrop 0.3s ease-out';
   
   // 生成选项（复用现有的复习选项生成器）
   const opts = buildReviewOptions(w);
   $('#gOptions').innerHTML = opts.map((o) => `
     <button class="choice-opt" data-correct="${o.correct}">
-      ${o.pos ? `<span class="co-pos">${esc(o.pos)}</span>` : ''}
-      <span class="co-text">${esc(o.text)}</span>
+      <span class="co-text" style="font-size:20px;">${esc(o.text)}</span>
     </button>
   `).join('');
   
@@ -6971,52 +7090,59 @@ function handleGameAnswer(btn, ok) {
   G.answered = true;
   
   if (ok) {
-    // 答对逻辑
+    // ── 答对 ──
     btn.classList.add('ok');
+    triggerFlash('flash-green');
+    
     G.combo++;
     if (G.combo > G.maxCombo) G.maxCombo = G.combo;
     
     // 得分 = 10 * 连击数
     const gain = 10 * G.combo;
     G.score += gain;
-    G.time += 1; // 答对加 1 秒
+    G.time += 1; 
     
     $('#gScore').textContent = G.score;
     $('#gTime').textContent = G.time;
     
-    // 连击特效
-    const wrap = $('#gComboWrap');
-    const comboText = $('#gCombo');
-    wrap.style.opacity = '1';
-    comboText.textContent = G.combo;
+    // 连击全屏爆炸特效
+    if (G.combo >= 2) {
+      const layer = $('#gComboLayer');
+      const num = $('#gComboNum');
+      num.textContent = G.combo;
+      layer.hidden = false;
+      layer.className = 'g-combo-layer'; // 重置
+      void layer.offsetWidth; // 触发重绘
+      layer.classList.add('combo-blast');
+    }
     
-    wrap.classList.remove('combo-pop');
-    void wrap.offsetWidth; // 强制回流
-    wrap.classList.add('combo-pop');
+    // 连击语音播报（打破枯燥）
+    if (G.combo === 3) Speech.speak("Triple Kill", { force: true });
+    else if (G.combo === 5) Speech.speak("Rampage", { force: true });
+    else if (G.combo === 10) Speech.speak("Godlike", { force: true });
     
   } else {
-    // 答错逻辑
+    // ── 答错 ──
     btn.classList.add('bad');
+    triggerFlash('flash-red');
+    
+    // 显示正确答案
     $$('#gOptions .choice-opt').forEach(x => {
       if (x.dataset.correct === '1') x.classList.add('ok');
     });
     
     G.combo = 0;
-    G.time = Math.max(0, G.time - 3); // 答错扣 3 秒
-    
+    G.time = Math.max(0, G.time - 3); // 扣 3 秒
     $('#gTime').textContent = G.time;
-    $('#gComboWrap').style.opacity = '0';
     
-    const wrap = $('.game-word-wrap');
-    wrap.classList.remove('game-shake');
-    void wrap.offsetWidth;
-    wrap.classList.add('game-shake');
+    // 屏幕震动
+    if (navigator.vibrate) navigator.vibrate(100);
   }
   
-  // 停顿 0.5 秒后下一题（答错给 0.8 秒看答案）
+  // 停顿后下一题（答错留时间看答案）
   setTimeout(() => {
     if (G.time > 0) nextGameQuestion();
-  }, ok ? 500 : 800);
+  }, ok ? 400 : 800);
 }
 
 function endGame() {
@@ -7025,11 +7151,13 @@ function endGame() {
   
   $('#gameRun').hidden = true;
   $('#gameResult').hidden = false;
+  $('#gameRun').classList.remove('game-danger');
   
   $('#gFinalScore').textContent = G.score;
   $('#gFinalCombo').textContent = G.maxCombo;
   
   Speech.speak("Game Over", { force: true });
+  if (navigator.vibrate) navigator.vibrate([100, 100, 100]);
 }
 
 function bindEvents() {
@@ -7198,12 +7326,11 @@ function bindEvents() {
     updateExitButton();
   });
 
-  // ★ 极速狂飙
+  // ★ 极速闪击
   const _btnStartGame = $('#btnStartGame');
   if (_btnStartGame) _btnStartGame.addEventListener('click', () => {
     Speech.warmup();
     startGame();
-    updateExitButton();
   });
   
   const _gCloseBtn = $('#gCloseBtn');
@@ -7211,8 +7338,6 @@ function bindEvents() {
     $('#gameResult').hidden = true;
     $('#gameRun').hidden = true;
     $('#testSetup').hidden = false;
-    document.body.classList.remove('test-mode');
-    updateExitButton();
     renderTestHome();
   });
 

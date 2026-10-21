@@ -1740,6 +1740,30 @@ body.theme-deepseek .lib-empty .big::before {
   filter: drop-shadow(0 4px 12px rgba(77,107,254,.6));
 }
 body.theme-deepseek .lib-empty .big { font-size: 0; }
+
+/* ═══════════ ⚡ 极速狂飙 ═══════════ */
+body.test-mode #view-test:has(#gameRun:not([hidden])) #testSetup { display:none !important; }
+.game-entry {
+  background: linear-gradient(135deg, rgba(255,180,60,.1), rgba(255,107,129,.1)) !important;
+  border-color: rgba(255,180,60,.4) !important;
+}
+.game-entry:active { transform: scale(.98); }
+
+/* 连击特效 */
+.combo-pop {
+  animation: comboPop 0.3s cubic-bezier(.22,1,.36,1);
+}
+@keyframes comboPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); filter: brightness(1.5); }
+  100% { transform: scale(1); }
+}
+
+/* 选错扣时间时的红光 */
+.game-shake {
+  animation: shake 0.4s;
+  background: rgba(255,107,129,.1) !important;
+}
 </style>
 </head>
 <body>
@@ -1969,6 +1993,39 @@ body.theme-deepseek .lib-empty .big { font-size: 0; }
           <div class="te-sub">待复习</div>
         </button>
       </div>
+
+      <!-- ★ 新增：极速狂飙入口 -->
+      <button type="button" class="test-entry-card game-entry" id="btnStartGame" style="margin-top:12px; width:100%; min-height:90px;">
+        <div class="te-label" style="color:#ffb43c">⚡ 极速狂飙</div>
+        <div class="te-sub" style="color:#ffb43c; opacity:0.8">限时 60 秒，答对加时间，连击拿高分！</div>
+      </button>
+    </div>
+
+    <!-- ★ 新增：游戏进行中界面 -->
+    <div id="gameRun" hidden style="display:flex; flex-direction:column; height:var(--app-h); padding: calc(var(--safe-top) + 8px) 16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0 20px;">
+        <div style="font-size:20px; font-weight:800; color:#ffb43c">时间: <span id="gTime">60</span>s</div>
+        <div style="font-size:20px; font-weight:800; color:var(--text)">得分: <span id="gScore">0</span></div>
+        <div id="gComboWrap" style="font-size:20px; font-weight:800; color:var(--accent2); opacity:0; transition:all 0.2s;">
+          连击: <span id="gCombo">0</span>
+        </div>
+      </div>
+      <div class="game-word-wrap" style="flex:1; display:flex; align-items:center; justify-content:center;">
+        <div class="quiz-word" id="gWord" style="font-size:48px;">word</div>
+      </div>
+      <div class="choice-grid" id="gOptions" style="padding-bottom:30px;"></div>
+    </div>
+
+    <!-- ★ 新增：游戏结算界面 -->
+    <div id="gameResult" hidden style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:var(--app-h); padding:20px;">
+      <div style="font-size:32px; font-weight:800; color:#ffb43c; margin-bottom:20px;">⚡ 挑战结束</div>
+      <div class="card" style="width:100%; text-align:center; padding:30px 20px;">
+        <div style="font-size:14px; color:var(--muted); margin-bottom:8px;">最终得分</div>
+        <div style="font-size:64px; font-weight:800; line-height:1; color:var(--text); margin-bottom:20px;" id="gFinalScore">0</div>
+        <div style="font-size:14px; color:var(--muted); margin-bottom:8px;">最高连击</div>
+        <div style="font-size:32px; font-weight:800; color:var(--accent2); margin-bottom:10px;" id="gFinalCombo">0</div>
+      </div>
+      <button class="btn primary block lg" id="gCloseBtn" style="margin-top:30px;">返回</button>
     </div>
 
     <!-- 测试进行中 -->
@@ -6843,6 +6900,138 @@ async function clearAllData() {
 /* ══════════════════════════════════════════════
    §7  事件绑定
    ══════════════════════════════════════════════ */
+const G = {
+  time: 60,
+  score: 0,
+  combo: 0,
+  maxCombo: 0,
+  timer: null,
+  currentWord: null,
+  answered: false
+};
+
+function startGame() {
+  if (S.words.length < 4) return toast('词库至少需要 4 个单词才能玩', 'warn');
+  
+  G.time = 60;
+  G.score = 0;
+  G.combo = 0;
+  G.maxCombo = 0;
+  G.answered = false;
+  
+  $('#gTime').textContent = G.time;
+  $('#gScore').textContent = G.score;
+  $('#gCombo').textContent = G.combo;
+  $('#gComboWrap').style.opacity = '0';
+  
+  $('#testSetup').hidden = true;
+  $('#gameResult').hidden = true;
+  $('#gameRun').hidden = false;
+  document.body.classList.add('test-mode');
+  
+  // 倒计时
+  if (G.timer) clearInterval(G.timer);
+  G.timer = setInterval(() => {
+    if (G.time <= 0) {
+      endGame();
+    } else {
+      G.time--;
+      $('#gTime').textContent = G.time;
+    }
+  }, 1000);
+  
+  nextGameQuestion();
+}
+
+function nextGameQuestion() {
+  if (G.time <= 0) return;
+  G.answered = false;
+  
+  // 随机抽一个词
+  const w = S.words[Math.floor(Math.random() * S.words.length)];
+  G.currentWord = w;
+  $('#gWord').textContent = w.text;
+  
+  // 生成选项（复用现有的复习选项生成器）
+  const opts = buildReviewOptions(w);
+  $('#gOptions').innerHTML = opts.map((o) => `
+    <button class="choice-opt" data-correct="${o.correct}">
+      ${o.pos ? `<span class="co-pos">${esc(o.pos)}</span>` : ''}
+      <span class="co-text">${esc(o.text)}</span>
+    </button>
+  `).join('');
+  
+  $$('#gOptions .choice-opt').forEach(b => {
+    b.onclick = () => handleGameAnswer(b, b.dataset.correct === '1');
+  });
+}
+
+function handleGameAnswer(btn, ok) {
+  if (G.answered || G.time <= 0) return;
+  G.answered = true;
+  
+  if (ok) {
+    // 答对逻辑
+    btn.classList.add('ok');
+    G.combo++;
+    if (G.combo > G.maxCombo) G.maxCombo = G.combo;
+    
+    // 得分 = 10 * 连击数
+    const gain = 10 * G.combo;
+    G.score += gain;
+    G.time += 1; // 答对加 1 秒
+    
+    $('#gScore').textContent = G.score;
+    $('#gTime').textContent = G.time;
+    
+    // 连击特效
+    const wrap = $('#gComboWrap');
+    const comboText = $('#gCombo');
+    wrap.style.opacity = '1';
+    comboText.textContent = G.combo;
+    
+    wrap.classList.remove('combo-pop');
+    void wrap.offsetWidth; // 强制回流
+    wrap.classList.add('combo-pop');
+    
+  } else {
+    // 答错逻辑
+    btn.classList.add('bad');
+    $$('#gOptions .choice-opt').forEach(x => {
+      if (x.dataset.correct === '1') x.classList.add('ok');
+    });
+    
+    G.combo = 0;
+    G.time = Math.max(0, G.time - 3); // 答错扣 3 秒
+    
+    $('#gTime').textContent = G.time;
+    $('#gComboWrap').style.opacity = '0';
+    
+    const wrap = $('.game-word-wrap');
+    wrap.classList.remove('game-shake');
+    void wrap.offsetWidth;
+    wrap.classList.add('game-shake');
+  }
+  
+  // 停顿 0.5 秒后下一题（答错给 0.8 秒看答案）
+  setTimeout(() => {
+    if (G.time > 0) nextGameQuestion();
+  }, ok ? 500 : 800);
+}
+
+function endGame() {
+  if (G.timer) clearInterval(G.timer);
+  G.timer = null;
+  
+  $('#gameRun').hidden = true;
+  $('#gameResult').hidden = false;
+  
+  $('#gFinalScore').textContent = G.score;
+  $('#gFinalCombo').textContent = G.maxCombo;
+  
+  Speech.speak("Game Over", { force: true });
+}
+
 function bindEvents() {
   // 底部导航
   $$('.tab').forEach(b => {
@@ -7007,6 +7196,24 @@ function bindEvents() {
     Speech.warmup();
     startReview();
     updateExitButton();
+  });
+
+  // ★ 极速狂飙
+  const _btnStartGame = $('#btnStartGame');
+  if (_btnStartGame) _btnStartGame.addEventListener('click', () => {
+    Speech.warmup();
+    startGame();
+    updateExitButton();
+  });
+  
+  const _gCloseBtn = $('#gCloseBtn');
+  if (_gCloseBtn) _gCloseBtn.addEventListener('click', () => {
+    $('#gameResult').hidden = true;
+    $('#gameRun').hidden = true;
+    $('#testSetup').hidden = false;
+    document.body.classList.remove('test-mode');
+    updateExitButton();
+    renderTestHome();
   });
 
   // ── 顶部「退出测试」按钮：只清当前正在做的那一边 ──

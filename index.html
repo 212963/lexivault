@@ -19,7 +19,8 @@
     var T = {
       dark:  { bg:'#0a0a12', surface:'#14141f', text:'#eaeaf5' },
       light: { bg:'#eef0f7', surface:'#ffffff', text:'#16161f' },
-      glass: { bg:'#0a1a14', surface:'#12241c', text:'#e6f2ec' }
+      glass: { bg:'#0a1a14', surface:'#12241c', text:'#e6f2ec' },
+      deepseek: { bg:'#0b132b', surface:'#1c2541', text:'#f4f6ff' }
     };
     var t = T[theme] || T.dark;
     function hex2rgb(h){
@@ -1639,6 +1640,106 @@ body.theme-glass .modal-box::after{
   pointer-events:none;
   border-radius:inherit;
 }
+
+/* ═══════════ 🐳 DeepSeek 专属主题 ═══════════ */
+body.theme-deepseek{
+  --blur:12px;
+}
+
+/* 背景：深海星光 + 标志性蓝紫光晕 */
+body.theme-deepseek::before{
+  background:
+    radial-gradient(800px 500px at 20% -10%, rgba(77,107,254,.28), transparent 65%),
+    radial-gradient(600px 400px at 100% 20%, rgba(139,92,246,.18), transparent 65%),
+    radial-gradient(700px 700px at 50% 110%, rgba(34,211,238,.12), transparent 60%) !important;
+}
+
+/* 卡片与窗口：深海半透明质感 */
+body.theme-deepseek .card,
+body.theme-deepseek .quiz-card,
+body.theme-deepseek .ring-card,
+body.theme-deepseek .test-entry-card,
+body.theme-deepseek .learn-card,
+body.theme-deepseek .word-item,
+body.theme-deepseek .lk-card,
+body.theme-deepseek .modal-box{
+  background:rgba(28,37,65,.72) !important;
+  border-color:rgba(100,160,255,.16) !important;
+  box-shadow:
+    0 16px 40px -16px rgba(0,30,100,.8),
+    inset 0 1px 0 rgba(160,200,255,.1) !important;
+}
+
+body.theme-deepseek .topbar{
+  background:rgba(11,19,43,.85) !important;
+  border-bottom-color:rgba(100,160,255,.15) !important;
+}
+
+body.theme-deepseek .tabbar{
+  background:rgba(11,19,43,.92) !important;
+  border-top-color:rgba(100,160,255,.15) !important;
+}
+
+body.theme-deepseek .modal-box{
+  background:rgba(20,30,55,.96) !important;
+}
+
+/* 按钮：DeepSeek 标志性的蓝紫渐变 */
+body.theme-deepseek .btn.primary{
+  background:linear-gradient(135deg,#4d6bfe,#8b5cf6) !important;
+  box-shadow:0 8px 22px -10px rgba(77,107,254,.8) !important;
+}
+
+/* 选中状态与高光元素：深蓝色 */
+body.theme-deepseek .tab.active{
+  color:#7c9dff;
+}
+body.theme-deepseek .tab.active::before{
+  background:linear-gradient(90deg,#4d6bfe,#8b5cf6);
+  box-shadow:0 2px 14px rgba(77,107,254,.9);
+}
+
+/* 大标题渐变 */
+body.theme-deepseek .ring-total,
+body.theme-deepseek .quiz-word,
+body.theme-deepseek .lkd-word,
+body.theme-deepseek .te-count,
+body.theme-deepseek .result-stat .pct,
+body.theme-deepseek .learn-card .lc-badge{
+  background:linear-gradient(135deg,#7c9dff,#a78bfa) !important;
+  -webkit-background-clip:text !important;
+  background-clip:text !important;
+  color:transparent !important;
+}
+
+/* 输入框 / 选项：深海质感 */
+body.theme-deepseek .input,
+body.theme-deepseek .meaning-input,
+body.theme-deepseek .pos-select,
+body.theme-deepseek .lookup-input,
+body.theme-deepseek .spell-input-bare,
+body.theme-deepseek .choice-opt,
+body.theme-deepseek .stage-btn,
+body.theme-deepseek .set-btn,
+body.theme-deepseek .theme-btn,
+body.theme-deepseek .alpha,
+body.theme-deepseek .sync-field input{
+  background:rgba(11,19,43,.6) !important;
+  border-color:rgba(100,160,255,.12) !important;
+}
+
+/* 圆环发光色 */
+body.theme-deepseek .ring-seg-learned{ stroke: url(#gradLearned); }
+body.theme-deepseek .ring-seg-review { stroke: #fbbf24; }
+body.theme-deepseek .ring-seg-new    { stroke: rgba(100,160,255,.2); }
+
+/* 小鲸鱼元素（替换词库空状态的图标） */
+body.theme-deepseek .lib-empty .big::before {
+  content: '🐳';
+  font-size: 56px;
+  filter: drop-shadow(0 4px 12px rgba(77,107,254,.6));
+}
+body.theme-deepseek .lib-empty .big { font-size: 0; }
 </style>
 </head>
 <body>
@@ -2603,6 +2704,19 @@ const THEMES = {
     glowBAlpha: 0.18,
     glowCAlpha: 0.10,
   },
+  deepseek: {
+    bg: '#0b132b',
+    surface: '#1c2541',
+    surface2: '#243157',
+    text: '#f4f6ff',
+    muted: '#8b9cc0',
+    border: 'rgba(100,160,255,.15)',
+    shadow: '0 16px 40px -16px rgba(0,30,100,.8)',
+    overlay: 'rgba(5,10,25,.7)',
+    glowAAlpha: 0.35,
+    glowBAlpha: 0.25,
+    glowCAlpha: 0.15,
+  },
 };
 const DEFAULT_SETTINGS = {
   accent: '#7c5cff', accent2: '#22d3ee',
@@ -2770,6 +2884,7 @@ function openSubModal(type) {
         <button class="stage-btn ${cur === 'dark'  ? 'on' : ''}" data-theme-pick="dark">🌙 暗色</button>
         <button class="stage-btn ${cur === 'light' ? 'on' : ''}" data-theme-pick="light">☀️ 明亮</button>
         <button class="stage-btn ${cur === 'glass' ? 'on' : ''}" data-theme-pick="glass">🪟 透明玻璃</button>
+        <button class="stage-btn ${cur === 'deepseek' ? 'on' : ''}" data-theme-pick="deepseek">🐳 DeepSeek</button>
       </div>
     `;
     $$('[data-theme-pick]', body).forEach(btn => {
@@ -2781,7 +2896,7 @@ function openSubModal(type) {
         $$('[data-theme-pick]', body).forEach(b =>
           b.classList.toggle('on', b.dataset.themePick === th));
         const shortEl = $('#themeStatusShort');
-        if (shortEl) shortEl.textContent = ({dark:'暗色', light:'明亮', glass:'透明玻璃'})[th] || '暗色';
+        if (shortEl) shortEl.textContent = ({dark:'暗色', light:'明亮', glass:'透明玻璃', deepseek:'DeepSeek'})[th] || '暗色';
         toast(th === 'dark' ? '已切换到暗色' : th === 'light' ? '已切换到明亮' : '已切换到透明玻璃', 'ok');
       };
     });

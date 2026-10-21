@@ -1788,6 +1788,10 @@ body.theme-deepseek .lib-empty .big { font-size: 0; }
   font-size: 64px; font-weight: 900; color: #fff;
   text-shadow: 0 0 30px rgba(34,211,238,0.6);
   animation: wordDrop 0.3s ease-out;
+  max-width: 90%;                 /* ★ 限制最大宽度 */
+  text-align: center;             /* ★ 居中 */
+  word-break: break-word;         /* ★ 极端超长词自动折行 */
+  line-height: 1.1;
 }
 @keyframes wordDrop {
   from { transform: scale(1.2) translateY(-20px); opacity: 0; filter: blur(4px); }
@@ -1816,29 +1820,47 @@ body.theme-deepseek .lib-empty .big { font-size: 0; }
   border-color: #ff6b81; box-shadow: 0 0 30px rgba(255,107,129,0.4); background: rgba(255,107,129,0.15);
 }
 
-/* 连击巨大数字冲击波 */
+/* 连击巨大数字冲击波（全屏蒙版特写版） */
 .g-combo-layer {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; pointer-events: none; z-index: 10;
+  background: rgba(5, 5, 16, 0.75);          /* ★ 全屏半透明暗色蒙版 */
+  backdrop-filter: blur(4px);                /* ★ 轻微毛玻璃，模糊底下的单词 */
+  opacity: 0;
 }
 .g-combo-num {
   font-size: 160px; font-weight: 900; line-height: 1;
   background: linear-gradient(180deg, #fff, #a78bfa, #22d3ee);
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 0 20px rgba(124,92,255,0.8));
+  filter: drop-shadow(0 0 30px rgba(124,92,255,0.9));
+  transform: scale(0.5);
 }
 .g-combo-txt {
-  font-size: 24px; font-weight: 900; letter-spacing: 8px; color: #a78bfa;
-  text-shadow: 0 0 10px rgba(167,139,250,0.8);
+  font-size: 28px; font-weight: 900; letter-spacing: 12px; color: #a78bfa;
+  text-shadow: 0 0 15px rgba(167,139,250,0.8);
+  margin-top: 10px;
+  transform: scale(0.5);
 }
+/* 蒙版和数字同时触发动画 */
 .combo-blast {
-  animation: comboBlast 0.5s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+  animation: comboMaskAnim 0.65s ease forwards;
 }
-@keyframes comboBlast {
-  0% { transform: scale(2); opacity: 0; filter: blur(10px); }
+.combo-blast .g-combo-num,
+.combo-blast .g-combo-txt {
+  animation: comboNumAnim 0.65s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+}
+
+@keyframes comboMaskAnim {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes comboNumAnim {
+  0% { transform: scale(1.5); opacity: 0; filter: blur(4px); }
   20% { transform: scale(1); opacity: 1; filter: blur(0); }
   80% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(0.9); opacity: 0; }
 }
 
 /* 结算界面 */
@@ -7029,6 +7051,11 @@ function startGame() {
   $('#gameRun').hidden = false;
   $('#gameRun').classList.remove('game-danger');
   
+  // ★ 开启沉浸模式，隐藏顶栏和底栏
+  document.body.classList.add('test-mode');
+  _inGame = true;
+  history.pushState({ game: true }, '');   // 压入历史栈，准备拦截返回键
+  
   // 倒计时
   if (G.timer) clearInterval(G.timer);
   G.timer = setInterval(() => {
@@ -7067,6 +7094,16 @@ function nextGameQuestion() {
   
   const wordEl = $('#gWord');
   wordEl.textContent = w.text;
+  
+  // ★ 动态计算字号：短词大，长词小，保证不超出屏幕
+  const len = w.text.length;
+  let fs = 64;
+  if (len > 6) fs = 52;
+  if (len > 8) fs = 42;
+  if (len > 10) fs = 34;
+  if (len > 13) fs = 28;
+  wordEl.style.fontSize = fs + 'px';
+
   // 重置掉入场动画
   wordEl.style.animation = 'none';
   void wordEl.offsetWidth;
@@ -7114,12 +7151,15 @@ function handleGameAnswer(btn, ok) {
       layer.className = 'g-combo-layer'; // 重置
       void layer.offsetWidth; // 触发重绘
       layer.classList.add('combo-blast');
+      
+      // ★ 动画播完自动隐藏，避免透明蒙版挡住后续点击
+      layer.onanimationend = () => {
+        layer.hidden = true;
+        layer.onanimationend = null;
+      };
     }
     
-    // 连击语音播报（打破枯燥）
-    if (G.combo === 3) Speech.speak("Triple Kill", { force: true });
-    else if (G.combo === 5) Speech.speak("Rampage", { force: true });
-    else if (G.combo === 10) Speech.speak("Godlike", { force: true });
+    // （已移除连击语音）
     
   } else {
     // ── 答错 ──
@@ -7143,6 +7183,19 @@ function handleGameAnswer(btn, ok) {
   setTimeout(() => {
     if (G.time > 0) nextGameQuestion();
   }, ok ? 400 : 800);
+}
+
+function exitGame() {
+  if (G.timer) clearInterval(G.timer);
+  G.timer = null;
+  G.time = 0;
+  
+  $('#gameResult').hidden = true;
+  $('#gameRun').hidden = true;
+  $('#testSetup').hidden = false;
+  
+  document.body.classList.remove('test-mode');
+  renderTestHome();
 }
 
 function endGame() {
@@ -7335,10 +7388,7 @@ function bindEvents() {
   
   const _gCloseBtn = $('#gCloseBtn');
   if (_gCloseBtn) _gCloseBtn.addEventListener('click', () => {
-    $('#gameResult').hidden = true;
-    $('#gameRun').hidden = true;
-    $('#testSetup').hidden = false;
-    renderTestHome();
+    exitGame();
   });
 
   // ── 顶部「退出测试」按钮：只清当前正在做的那一边 ──
@@ -7560,6 +7610,7 @@ function bindEvents() {
    §7.5  手机返回键 / 侧滑拦截
    ══════════════════════════════════════════════ */
 let _atQuiz = false;          // 当前 history 栈顶是不是我们压的「答题层」
+let _inGame = false;          // 当前是不是在玩「极速闪击」
 let _suppressNextPopstate = false;  // ★ 抑制下一次 popstate（防止返回键触发退出框）
 
 /* 系统返回键触发的"退回上一级"——和左上角「←」做一样的事 */
@@ -7643,6 +7694,13 @@ function initBackGuard() {
     });
     if (openModalId) {
       closeModal(openModalId);
+      return;
+    }
+
+    // ★ 游戏进行中 → 直接结束游戏，退回测试首页
+    if (_inGame) {
+      _inGame = false;
+      exitGame();
       return;
     }
 
